@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta name="description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
 <meta name="theme-color" content="#17120f">
 <link rel="canonical" href="https://warabinbin.github.io/dokuro-saloon/">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="ドクロ酒場">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:title" content="ドクロ酒場 | 飲み会ゲーム集">
-<meta property="og:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta property="og:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
 <meta property="og:url" content="https://warabinbin.github.io/dokuro-saloon/">
 <meta property="og:image" content="https://warabinbin.github.io/dokuro-saloon/og.png">
 <meta property="og:image:width" content="1200">
@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="ドクロ酒場 | 飲み会ゲーム集">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="ドクロ酒場 | 飲み会ゲーム集">
-<meta name="twitter:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta name="twitter:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
 <meta name="twitter:image" content="https://warabinbin.github.io/dokuro-saloon/og.png">
 <title>ドクロ酒場 | 飲み会ゲーム集</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -197,7 +197,6 @@ function liarInfo(i){
   const voted=g.votes.length+(g.madDone?1:0),hints={role:'役職を確認中。みんなが確認し終わるまで待つ。',talk:isN?'お題の話を語ろう。指定の言葉は自然に混ぜる。':'語り手の話を聞く。矛盾や不自然さを探そう。',interro:isN?'質問には即答。詰まると怪しまれる。':'語り手に1問ずつ質問する。',vote:`投票中 ${voted}/${g.voters.length}。${isN?'みんなが見破れるか見守ろう。':''}`,reveal:''};
   return infoCard('嘘つきグラス',rows,hints[g.phase]||'');
 }
-const diceInfo=i=>{const g=S.g;if(!g)return '';const b=g.bid;return infoCard('ダイスブラフ',[['あなたのダイス',`<span class=win>${g.dice[i].join(' ')}</span>`],['現在の宣言',b?`${nm(b.by)}「${b.f}が${b.q}個」`:'まだなし'],['場のダイス',N()*g.D+'個']],'自分のダイスは自分にだけ見える。')};
 const itoInfo=i=>{const g=S.g;if(!g)return '';return infoCard('ならべ酒場',[['テーマ',esc(g.th[0])],['1=',esc(g.th[1])],['100=',esc(g.th[2])],['あなたの数字',`<span class=win>${g.nums[i]}</span>`]],'数字は言わずに、たとえで伝える。')};
 const kingInfo=i=>{const g=S.g;if(!g)return '';return infoCard('王様ゲーム',[['あなたの役',g.r[i]?`<span class=lose>${g.r[i]}番</span>`:'<span class=win>王様</span>']],g.r[i]?'王様の命令に従う。番号は命令が終わるまで秘密。':'命令を選んで読み上げる。')};
 
@@ -466,34 +465,13 @@ function askW(i,name,params,cb,wait){
 
 /* ---- hub menu ---- */
 const GAMES=[
- ['会話・ブラフ',[['g1','嘘つきグラス','嘘を見抜け',2],['g5','ダイスブラフ','ダウトの駆け引き',2]]],
+ ['会話・ブラフ',[['g1','嘘つきグラス','嘘を見抜け',2]]],
  ['みんなで協力',[['g6','ならべ酒場','数字を言わず並べる',3],['g4','お絵描きリレー','伝言お絵描き',3]]],
  ['盛り上がる',[['g7','爆弾リレー','持ってたら爆発',2],['g9','おでこクイズ','言わずに伝える',2],['g8','王様ゲーム','命令は絶対',3]]],
  ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2],['g12','シンクロ連想','答えを一致させろ',2]]],
  ['アクション',[['g20','ドクロ・インベーダー','協力シューティング(結果が反映される)',1]]],
  ['その他',[['mis','ミッション','秘密の指令',2],['g3','幕間ミニゲーム','サクッと',2],['rand','おまかせ','迷ったらこれ',2]]]];
 const menu=()=>GAMES.map(([t,a])=>`<p class=k>${t}</p><div class=row>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="${x[0]==='g1'?'':x[0]==='mis'?'grn':'alt'}" data-act=${x[0]}>${x[1]}<span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('');
-
-/* ---- dice bluff ---- */
-function dice(){
-  const n=N(),D=n<=4?3:2;
-  S.g={D,dice:Array.from({length:n},()=>Array.from({length:D},()=>1+(Math.random()*6|0)).sort()),bid:null,turn:Math.random()*n|0,sel:null};
-  go(`<p class=k>ダイスブラフ</p><h2>全員が${D}個のダイスを隠し持つ</h2><p>順番に、場の全ダイスに何の目が何個あるかを宣言する(例:「4が5個」)。前の宣言より、個数を増やすか、同じ個数で目を大きくする。信じられなければ「ダウト」。自分の番にだけ、自分のダイスが見える。</p>
-  <p class=muted>宣言が本当なら挑戦者が、嘘なら宣言した人が飲む。ぴったりなら挑戦者は倍。</p>${nextBtn('始める')}`);
-  S.info=diceInfo;S.cb=diceTurn0;
-}
-const diceTurn0=()=>pass(S.g.turn,'ダイスブラフ',diceTurn);
-const minBid=b=>!b?{q:1,f:1}:b.f<6?{q:b.q,f:b.f+1}:{q:b.q+1,f:1};
-const bidOk=()=>{const g=S.g,b=g.bid,s=g.sel;return s.q<=N()*g.D&&(!b||s.q>b.q||(s.q===b.q&&s.f>b.f))};
-function diceTurn(){
-  const g=S.g,T=N()*g.D;if(!g.sel)g.sel=minBid(g.bid);g.sel.q=Math.min(g.sel.q,T);const ok=bidOk();
-  gop(g.turn,`<p class=k>${nm(g.turn)}の番</p><div class=card><p>あなたのダイス</p><div class=big style="font-size:48px;padding:6px 0">${g.dice[g.turn].join(' ')}</div></div>
-  <p>${g.bid?`現在の宣言: <b class=win>${nm(g.bid.by)}「${g.bid.f}が${g.bid.q}個」</b>(全${T}個中)`:`まだ宣言なし(全${T}個)`}</p>
-  <div class=card><p>あなたの宣言</p><div class=row style="align-items:center;flex-wrap:nowrap"><button class=alt data-act=dq data-d=-1 style="flex:0 0 64px">−</button><b style="flex:1 1 auto;min-width:0;white-space:nowrap;text-align:center;font:700 24px var(--body)">${g.sel.f}が${g.sel.q}個</b><button class=alt data-act=dq data-d=1 style="flex:0 0 64px">＋</button></div>
-  <div class=row style="flex-wrap:nowrap">${[1,2,3,4,5,6].map(f=>`<button class="alt ${f===g.sel.f?'sel':''}" data-act=df data-f=${f}>${f}</button>`).join('')}</div>
-  <button data-act=dbid ${ok?'':'disabled'}>${ok?'宣言する':'前の宣言より上げてください'}</button></div>
-  ${g.bid?'<button class=red data-act=ddoubt>ダウト!</button>':''}`);
-}
 
 /* ---- ito: line up by number ---- */
 const THEMES=[['怖いもの','怖くない','超怖い'],['重いもの','軽い','重い'],['高そうな買い物','安い','高い'],['寒い場所','暑い','寒い'],['すごい人','普通','すごい'],['モテる職業','モテない','モテる'],['辛い食べ物','辛くない','激辛'],['恥ずかしい出来事','平気','死にたい'],['大きい生き物','小さい','巨大'],['速い乗り物','遅い','速い'],['お酒の強さ','下戸','ザル'],['うるさい音','静か','爆音'],['眠くなるもの','眠れない','即寝'],['面倒な家事','楽','最悪'],['有名な人','無名','超有名'],['痛いこと','痛くない','激痛'],['楽しい遊び','退屈','最高'],['長生きな生き物','短命','長寿'],['臭いもの','無臭','悪臭'],['危険なスポーツ','安全','命がけ']];
@@ -907,19 +885,12 @@ const A={
   NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
   NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';NET.room.presence({playing:true});try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
  netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);NET.room.presence({playing:false});renderNetLobby()},
- resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},g12(){sync()},
- rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11','g12'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
+ resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},g12(){sync()},
+ rand(){const a=['g1','g6','g4','g7','g9','g8','g10','g11','g12'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
  cb(){S.cb&&S.cb()},
  vote(e){S.g.votes.push([S.g.voters[S.g.k2],+e.dataset.v]);voteLoop(S.g.k2+1)},
  nom(e){drink(+e.dataset.i,S.g.nomN,'嘘つきグラスで指名された(×'+S.g.nomN+')');done()},
  tolie(){const g=S.g;g.t=false;g.sw=true;g.lvl[0]=3;g.words[0]=[...WORDS].sort(()=>Math.random()-.5).slice(0,3);g.ans=0;g.ansText='嘘';g.liar=g.ws[0];g.win=g.ws[0];g.nomN=3;gop(g.ws[0],cardHtml(0))},
- dq(e){const g=S.g,T=N()*g.D;g.sel.q=Math.max(1,Math.min(T,g.sel.q+ +e.dataset.d));diceTurn()},
- df(e){S.g.sel.f=+e.dataset.f;diceTurn()},
- dbid(){const g=S.g;if(!bidOk())return;g.bid={q:g.sel.q,f:g.sel.f,by:g.turn};g.turn=(g.turn+1)%N();g.sel=null;diceTurn0()},
- ddoubt(){const g=S.g,b=g.bid,cnt=g.dice.flat().filter(x=>x===b.f).length,bidderOk=cnt>=b.q,loser=bidderOk?g.turn:b.by,amt=bidderOk?(cnt===b.q?2:1):(b.q-cnt>=2?2:1);
-  drink(loser,amt,'ダイスブラフ');
-  go(`<p class=k>オープン</p><h2>${b.f}は全部で${cnt}個</h2><p>宣言: ${nm(b.by)}「${b.f}が${b.q}個」</p><div class=card>${g.dice.map((d,i)=>`<div class=pl><span>${nm(i)}</span><b>${d.map(x=>x===b.f?`<span class=win>${x}</span>`:x).join(' ')}</b></div>`).join('')}</div>
-  <p class=lose>${nm(loser)}が×${amt}飲む${bidderOk&&cnt===b.q?'(ぴったりで倍)':''}</p>${nextBtn()}`);S.cb=done},
  ito(e){S.g.ord.push(+e.dataset.i);itoOrder()},
  itoundo(){S.g.ord.pop();itoOrder()},
  bstart(){NET.on?bombNetRun():bombRun()},
@@ -956,7 +927,7 @@ function abortGame(){
 $('#gback').addEventListener('click',()=>{$('#mtxt').textContent=NET.on?'全員の画面がゲーム選択に戻る。ここまでの結果は残る。':'ここまでの結果は残る。ラウンドは進まない。';$('#modal').hidden=false});
 $('#mno').addEventListener('click',()=>{$('#modal').hidden=true});
 $('#mok2').addEventListener('click',abortGame);
-['g1','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
+['g1','g3','g4','g6','g7','g8','g9','g10','g11','g12','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
 $('#app').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
   if(act==='savePoster'){savePosterImage(false);return}
