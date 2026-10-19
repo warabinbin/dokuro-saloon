@@ -30,10 +30,10 @@
 :root{--ink:#0e0b09;--panel:#1c1511;--line:#3a2d24;--fg:#f3e9dc;--mute:#a89886;--amber:#f0a63a;--red:#e0553a;--green:#5fae7a;--blue:#4aa3d8;
 --display:'Dela Gothic One','Hiragino Sans','Yu Gothic',sans-serif;--body:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;color-scheme:dark}
 html,body{height:100%;overscroll-behavior:none}
-body{margin:0;background:var(--ink);color:var(--fg);font:500 16px/1.5 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:flex;justify-content:center;box-sizing:border-box}
+body{margin:0;background:var(--ink);background-image:linear-gradient(180deg,rgba(14,11,9,.62),rgba(14,11,9,.92)),url("../tavern-bg.svg");background-size:cover;background-position:center;background-attachment:fixed;color:var(--fg);font:500 16px/1.5 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:flex;justify-content:center;box-sizing:border-box}
 .stage{position:relative;width:100%;max-width:480px;touch-action:none}
-canvas{display:block;width:100%;height:auto;border-radius:14px;background:#120d0a;border:1px solid var(--line);touch-action:none}
-.ov{position:absolute;inset:0;top:var(--ovtop,0);display:flex;flex-direction:column;gap:12px;justify-content:center;padding:18px;background:rgba(14,11,9,.84);border-radius:14px;overflow:auto;box-sizing:border-box;touch-action:pan-y}
+canvas{display:block;width:100%;height:auto;border-radius:14px;background:#120d0a;border:1px solid #5a402b;box-shadow:0 12px 30px rgba(0,0,0,.28);touch-action:none}
+.ov{position:absolute;inset:0;top:var(--ovtop,0);display:flex;flex-direction:column;gap:12px;justify-content:center;padding:18px;background-image:linear-gradient(180deg,rgba(14,11,9,.86),rgba(14,11,9,.93)),url("../tavern-bg.svg");background-size:cover;background-position:center;border:1px solid rgba(240,166,58,.22);border-radius:14px;overflow:auto;box-sizing:border-box;touch-action:pan-y;backdrop-filter:blur(3px)}
 h1{font-family:var(--display);font-weight:400}
 h2{font-family:var(--body);font-weight:700}
 h1,h2{margin:0;line-height:1.3;text-wrap:balance}
@@ -48,6 +48,10 @@ button.sm{min-height:40px;font-size:14px;padding:6px 10px}
 button.sel{outline:3px solid var(--fg)}
 button[disabled]{opacity:.4;cursor:not-allowed}
 button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+a.btn,button{box-shadow:0 3px 0 rgba(0,0,0,.22)}
+a.btn:active,button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.28)}
+.card{background:linear-gradient(145deg,rgba(48,34,24,.95),rgba(29,22,17,.97));border-color:#4c3726}
+@media (prefers-reduced-motion:reduce){button{transition:none}}
 input{font:inherit;color:var(--fg);background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;box-sizing:border-box;-webkit-user-select:text;user-select:text}
 .row{display:flex;flex-wrap:wrap;gap:8px}.row>button{flex:1 1 52px;min-width:0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
