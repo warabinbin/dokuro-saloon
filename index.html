@@ -208,7 +208,7 @@ const done=()=>{S.round++;hub()};
 const infoCard=(title,rows,hint)=>`<div class=card><p class=k>あなたの情報・${title}</p>${rows.map(([a,b])=>`<div class=pl><span>${a}</span><b>${b}</b></div>`).join('')}${hint?`<p class=muted>${hint}</p>`:''}</div>`;
 function liarInfo(i){
   const g=S.g;if(!g||g.phase==='intro')return '';
-  const j=g.ws.indexOf(i),isN=j>=0,isMad=i===g.mad,rows=[['お題',esc(g.topic)],['語り手',g.ws.map(w=>nm(w)).join(' / ')],['あなたの役',isN?'<span class=lose>語り手</span>':isMad?'<span class=lose>狂人</span>':'聴き手']];
+  const j=g.ws.indexOf(i),isN=j>=0,isMad=i===g.mad,rows=[['お題',esc(g.topic)],['語り手',g.ws.map(w=>nm(w)).join(' / ')],['あなたの役',isN?'<span class=lose>語り手</span>':isMad?'<span class=lose>サクラ</span>':'聴き手']];
   if(isN&&g.phase!=='reveal'){const l=g.lvl[j];rows.push(['あなたの話',l===0?'<span class=win>本当にあった話</span>':`作り話 ${'★'.repeat(l)}${'☆'.repeat(3-l)}`]);if(l>0)rows.push(['入れる言葉',g.words[j].map(esc).join(' / ')])}
   if(isMad&&g.phase!=='reveal')rows.push(['正解',`<span class=win>${g.ansText}</span>`]);
   const voted=g.votes.length+(g.madDone?1:0),hints={role:'役職を確認中。みんなが確認し終わるまで待つ。',talk:isN?'お題の話を語ろう。指定の言葉は自然に混ぜる。':'語り手の話を聞く。矛盾や不自然さを探そう。',interro:isN?'質問には即答。詰まると怪しまれる。':'語り手に1問ずつ質問する。',vote:`投票中 ${voted}/${g.voters.length}。${isN?'みんなが見破れるか見守ろう。':''}`,reveal:''};
@@ -240,7 +240,7 @@ function liar(){
   S.info=liarInfo;g.phase='intro';
   go(`<p class=k>嘘つきグラス</p><h2>お題: ${esc(g.topic)}</h2>
   <div class=card><p>語り手: <b>${g.ws.map(w=>nm(w)).join(' / ')}</b>${dbl?'(片方だけが本当の話)':''}</p>
-  <p class=muted>語り手が話をする。聴き手は質問して、本当の話か作り話かを見抜く。外したらひと口。${madOn?'聴き手の中に狂人が1人いる(語り手の味方)。':''}</p></div>${nextBtn('役を確認する')}`);
+  <p class=muted>語り手が話をする。聴き手は質問して、本当の話か作り話かを見抜く。外したらひと口。${madOn?'聴き手の中にサクラが1人いる(語り手の仲間)。':''}</p><p class=muted>※ サクラは5人以上のときに登場(4人のときはたまに)。</p></div>${nextBtn('役を確認する')}`);
   S.cb=()=>{g.phase='role';madOn?roleLoop(0):narrLoop(0)};
 }
 function cardHtml(j){
@@ -262,13 +262,13 @@ function roleLoop(p){
   const i=order[p],j=g.ws.indexOf(i);
   pass(i,'役職確認',()=>{S.cb=()=>roleLoop(p+1);
     go(j>=0?cardHtml(j)
-     :i===g.mad?`<h2 class=lose>あなたは狂人</h2><div class=card><p>語り手の味方。聴き手のふりをして、多数派を外させよう。</p><p>正解は <b class=win>${g.ansText}</b></p><p class=muted>投票はなし。順番が来たらボタンを押すだけ。</p></div><button data-act=cb>覚えた(画面を伏せる)</button>`
-     :`<h2>あなたは聴き手</h2><p class=muted>語り手の嘘を見抜こう。この中に狂人が1人いる。</p><button data-act=cb>覚えた(画面を伏せる)</button>`)});
+     :i===g.mad?`<h2 class=lose>あなたはサクラ</h2><div class=card><p>語り手の味方。聴き手のふりをして、多数派を外させよう。</p><p>正解は <b class=win>${g.ansText}</b></p><p class=muted>投票はなし。順番が来たらボタンを押すだけ。</p></div><button data-act=cb>覚えた(画面を伏せる)</button>`
+     :`<h2>あなたは聴き手</h2><p class=muted>語り手の嘘を見抜こう。この中にサクラが1人いる。</p><button data-act=cb>覚えた(画面を伏せる)</button>`)});
 }
 function talk(){
   const g=S.g;g.phase='talk';S.cb=interro;
   go(`<p class=k>語りタイム</p><h2>${g.ws.map((w,j)=>(g.dbl?AB[j]+': ':'')+nm(w)).join(' → ')}</h2>
-  <p class=muted>${g.dbl?'AとBが順に1分ずつ語る。片方だけが本当の話。':'1分ほどで語る。'}お題は「${g.topic}」。${g.madOn?'聴き手の中に狂人が1人いる。':''}</p>${nextBtn('尋問へ')}`);
+  <p class=muted>${g.dbl?'AとBが順に1分ずつ語る。片方だけが本当の話。':'1分ほどで語る。'}お題は「${g.topic}」。${g.madOn?'聴き手の中にサクラが1人いる。':''}</p>${nextBtn('尋問へ')}`);
 }
 function interro(){
   S.g.phase='interro';S.cb=()=>voteLoop(0);
@@ -293,8 +293,8 @@ function liarReveal(){
   let card='',mad='';
   if(fooled){card=pick(CARDS);S.players[g.win].cards.push(card)}
   if(g.mad>=0){
-    if(fooled){const c=pick(CARDS);S.players[g.mad].cards.push(c);mad=`狂人は${nm(g.mad)}。語り手が勝ったのでカード「${c}」を獲得`}
-    else{drink(g.mad,1,'狂人が負けた');mad=`狂人は${nm(g.mad)}。負けてひと口`}}
+    if(fooled){const c=pick(CARDS);S.players[g.mad].cards.push(c);mad=`サクラは${nm(g.mad)}。語り手が勝ったのでカード「${c}」を獲得`}
+    else{drink(g.mad,1,'サクラが負けた');mad=`サクラは${nm(g.mad)}。負けてひと口`}}
   const said=x=>g.dbl?AB[x[1]]:(x[1]?'本当':'嘘');
   go(`<p class=k>結果</p><h2>${g.dbl?nm(g.liar)+'が作り話でした':(g.t?'本当の話でした':'作り話でした')}</h2>
   <div class=card>${v.map(x=>`<div class=pl><span>${nm(x[0])}</span><b class="${ok(x)?'win':'lose'}">${said(x)}</b></div>`).join('')}</div>
