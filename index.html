@@ -78,7 +78,7 @@ button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .card{background:linear-gradient(145deg,rgba(48,34,24,.96),rgba(29,22,17,.98));border:1px solid #58402c;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,220,160,.045)}
 input{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0;box-sizing:border-box;-webkit-user-select:text;user-select:text}
 .pl{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)} .pl:last-child{border:0}
-.gz{display:inline-flex;align-items:center;gap:8px}.hint{font-size:11px;color:var(--red);font-weight:700}
+.gz{display:inline-flex;align-items:center;gap:8px}.tot{font-size:13px;color:var(--mute)}.tot b{color:var(--fg);font-size:18px;margin:0 2px}.hint{font-size:11px;color:var(--red);font-weight:700}
 .jug{position:relative;width:26px;height:34px;border:2px solid var(--amber);border-top-width:0;border-radius:2px 2px 8px 8px;overflow:hidden;background:rgba(255,255,255,.05)}
 .jf{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#f7d98a 0,var(--amber) 22%,#c9791f);transition:height .6s cubic-bezier(.3,1.4,.5,1);box-shadow:inset 0 3px 0 #fff8}
 .jug.hot{border-color:var(--red)}
@@ -209,7 +209,7 @@ function hub(){
   let dr='';S.players.forEach(p=>{if((p.g||0)>=GMAX){p.drunk=(p.drunk||0)+1;p.g=2;S.log.push(`R${S.round+1} ${p.name}: 泥酔!`);dr+=`<div class=ev><b>🥴 ${esc(p.name)}が泥酔!(酔いゲージ満タン)</b><br>${pick(DRUNK).replace(/\{n\}/g,esc(p.name))}</div>`}});
   const note=S.note?`<div class=ev><b>インベーダーの結果</b><br>${esc(S.note)}</div>`:'';S.note='';
   go(`<p class=k>ラウンド ${S.round+1}</p>${dr}${ev}${note}
-  <div class=card>${S.players.map((p,i)=>`<div class=pl><span>${esc(p.name)}${p.drunk?`<span class=tag>泥酔×${p.drunk}</span>`:''}</span><span class=gz>${jug(p)}</span></div>${p.cards.length?`<div class=row>${p.cards.map((c,k)=>`<button class="sm grn" data-act=card data-i=${i} data-k=${k}>${c}</button>`).join('')}</div>`:''}`).join('')}</div>
+  <div class=card>${S.players.map((p,i)=>`<div class=pl><span>${esc(p.name)}${p.drunk?`<span class=tag>泥酔×${p.drunk}</span>`:''}</span><span class=gz><span class=tot title="今夜飲んだ回数">計<b>${p.drinks}</b>杯</span>${jug(p)}</span></div>${p.cards.length?`<div class=row>${p.cards.map((c,k)=>`<button class="sm grn" data-act=card data-i=${i} data-k=${k}>${c}</button>`).join('')}</div>`:''}`).join('')}</div>
   ${menu()}
   <button class="alt" data-act=end>今夜はここまで(結果)</button>`);
 }
