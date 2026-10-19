@@ -728,7 +728,7 @@ function bmNew(np,k){
     x0++;y0++;x1--;y1--;
   }
   return{g,w,h,np,sdn:Math.round(900*BK*Math.sqrt(w*h/195)),sds:(w*h>260?2:3)*BK,tick:0,t0:30*BK,rc:30*BK,ph:'ready',b:[],f:[],spi,sdi:0,rank:null,
-    p:Array.from({length:np},(_,i)=>({i,x:sp[i][0],y:sp[i][1],a:1,mb:1,pw:2,sp:4,cd:0,dx:0,dy:0,nb:0,d:0,sh:0,inv:0,kick:0,rv:0,sx:0,sy:0,inT:0}))};
+    p:Array.from({length:np},(_,i)=>({i,x:sp[i][0],y:sp[i][1],a:1,mb:1,pw:2,sp:4,cd:0,dx:0,dy:0,nb:0,d:0,sh:0,inv:0,kick:0,rv:0,sx:0,sy:0,inT:0,bud:12}))};
 }
 const bmAt=(s,x,y)=>s.g[y*s.w+x];
 function bmFree(s,x,y,p){const c=bmAt(s,x,y);if(c==='#'||c==='+')return false;return !s.b.some(b=>b.x===x&&b.y===y&&!b.walk.includes(p.i))}
@@ -737,10 +737,25 @@ function bmKill(s,p,force){
   if(p.sh&&!force){p.sh=0;p.inv=8*BK;return}   // barrier soaks one hit
   p.a=0;p.d=s.tick;
 }
+/* Phones move their own skull (so it stops exactly where the thumb lifts) and report the cell; the host only validates it:
+   inside the map, free, at most 3 cells from where the host has it, and not faster than the skull's speed allows (a token budget). */
+function bmMove(s,i,x,y){
+  const p=s&&s.p[i];if(!p||!p.a||s.ph!=='play')return false;
+  x=Math.round(x);y=Math.round(y);if(!(x>=0&&y>=0&&x<s.w&&y<s.h))return false;
+  const d=Math.abs(x-p.x)+Math.abs(y-p.y);if(!d)return true;if(d>3)return false;
+  const cost=d*Math.max(1,p.sp-1);if(p.bud<cost||!bmFree(s,x,y,p))return false;
+  p.bud-=cost;p.x=x;p.y=y;
+  s.b.forEach(b=>{if(b.walk.includes(p.i)&&!(b.x===p.x&&b.y===p.y))b.walk=b.walk.filter(k=>k!==p.i)});
+  const c=bmAt(s,x,y);
+  if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(2,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50*BK;
+  if(ITEMS.includes(c))s.g[y*s.w+x]='.';
+  return true;
+}
 function bmInput(s,i,m){
   const p=s&&s.p[i];if(!p||!p.a||s.ph==='over')return;
-  p.dx=Math.sign(+m.dx||0);p.dy=p.dx?0:Math.sign(+m.dy||0);p.inT=s.tick;
-  p.sx=p.dy?Math.sign(+m.ax||0):0;p.sy=p.dx?Math.sign(+m.ay||0):0;   // diagonal stick: the other axis is the fallback when the main one is blocked
+  p.dx=Math.sign(+m.dx||0);p.dy=p.dx?0:Math.sign(+m.dy||0);p.inT=s.tick;   // the held direction is only used for kicking bombs now
+  p.sx=p.dy?Math.sign(+m.ax||0):0;p.sy=p.dx?Math.sign(+m.ay||0):0;
+  if(m.px!=null&&m.py!=null)bmMove(s,i,+m.px,+m.py);
   if(m.bomb&&s.ph==='play'&&p.nb<p.mb&&!s.b.some(b=>b.x===p.x&&b.y===p.y)){
     s.b.push({x:p.x,y:p.y,t:24*BK,pw:p.pw,o:i,walk:s.p.filter(q=>q.a&&q.x===p.x&&q.y===p.y).map(q=>q.i)});p.nb++;
   }
@@ -757,20 +772,10 @@ function bmTick(s){
   s.p.forEach(p=>{
     if(!p.a)return;if(p.cd>0)p.cd--;if(p.inv>0)p.inv--;if(p.rv>0)p.rv--;
     if(s.exp&&(p.dx||p.dy)&&s.tick-p.inT>8*BK)p.dx=p.dy=0;   // phones re-send a held direction every 250ms; silence means the release got lost
-    if(p.cd<=0&&(p.dx||p.dy)){
-      const ord=[[p.dx,p.dy]];if(p.sx||p.sy)ord.push([p.sx,p.sy]);
-      for(const[ux,uy]of ord){
-        const mx=p.rv>0?-ux:ux,my=p.rv>0?-uy:uy,nx=p.x+mx,ny=p.y+my,kb=p.kick&&s.b.find(b=>b.x===nx&&b.y===ny&&!b.walk.includes(p.i));
-        if(kb){kb.vx=mx;kb.vy=my;p.cd=p.sp;break}
-        if(bmFree(s,nx,ny,p)){
-          p.x=nx;p.y=ny;p.cd=p.sp;
-          s.b.forEach(b=>{if(b.walk.includes(p.i)&&!(b.x===p.x&&b.y===p.y))b.walk=b.walk.filter(k=>k!==p.i)});
-          const c=bmAt(s,nx,ny);
-          if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(2,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50*BK;
-          if(ITEMS.includes(c))s.g[ny*s.w+nx]='.';
-          break;
-        }
-      }
+    p.bud=Math.min(p.bud+1,3*p.sp);
+    if(p.kick&&p.cd<=0&&(p.dx||p.dy)){   // walking into a bomb with the kick boot pushes it
+      const mx=p.rv>0?-p.dx:p.dx,my=p.rv>0?-p.dy:p.dy,nx=p.x+mx,ny=p.y+my,kb=s.b.find(b=>b.x===nx&&b.y===ny&&!b.walk.includes(p.i));
+      if(kb){kb.vx=mx;kb.vy=my;p.cd=p.sp}
     }
   });
   s.b.forEach(b=>{
@@ -800,13 +805,19 @@ function bmTick(s){
     s.rank=s.p.map(p=>1+s.p.filter(o=>key(o)>key(p)).length);
   }
 }
-const bmMsg=s=>({k:'bm',t:s.tick,ph:s.ph,rc:s.rc,w:s.w,h:s.h,sd:s.tick-s.t0,sdn:s.sdn,g:s.g.join(''),p:s.p.map(p=>[p.x,p.y,p.a,p.sh,p.rv>0?1:0,p.pw,p.mb,p.sp,p.kick]),b:s.b.map(b=>[b.x,b.y,b.t]),f:s.f.map(f=>[f.x,f.y]),rk:s.rank});
+const bmMsg=s=>({k:'bm',ak:s.p.map(p=>BM.seq[p.i]||0),t:s.tick,ph:s.ph,rc:s.rc,w:s.w,h:s.h,sd:s.tick-s.t0,sdn:s.sdn,g:s.g.join(''),p:s.p.map(p=>[p.x,p.y,p.a,p.sh,p.rv>0?1:0,p.pw,p.mb,p.sp,p.kick]),b:s.b.map(b=>[b.x,b.y,b.t]),f:s.f.map(f=>[f.x,f.y]),rk:s.rank});
 BM.recv=m=>{if(m&&m.k==='bm'&&(!BM.cur||m.t>=BM.cur.t))BM.cur=m};
 BM.stop=()=>{clearInterval(BM.iv);BM.iv=0;if(BM.sim)clearTimeout(BM.sim.endT);BM.sim=null;BM.cur=null;BM.seen=null;BM.tok=0};
 function bmPub(){const s=BM.sim;if(!s)return;const m=bmMsg(s);BM.recv(m);try{NET.room.pub('bm/st',m)}catch(e){}}
 function bmStep(){
   const s=BM.sim;if(!s)return;bmTick(s);if(s.tick%2===0||s.ph==='over')bmPub();
   if(s.ph==='over'&&!s.endT)s.endT=setTimeout(bomberResult,3200);
+}
+function bmHandle(i,m){
+  const s=BM.sim;if(!s||!s.p[i])return;
+  if(m.n===undefined||m.n>(BM.seq[i]||0)){BM.seq[i]=m.n;bmInput(s,i,m)}   // the 3 brokers can deliver out of order: only a newer message may move or steer
+  else if(m.bomb)bmInput(s,i,{dx:s.p[i].dx,dy:s.p[i].dy,bomb:1});
+  if(m.bomb)bmPub();
 }
 function bomberIntro(){
   go(`<p class=k>ボンバー酒場</p><h2>爆弾で最後の1人になれ</h2>
@@ -820,12 +831,7 @@ function bomberIntro(){
 function bomberStart(){
   BM.stop();
   const n=N(),np=Math.min(n,BMAX);BM.sim=bmNew(np,BM.k);BM.sim.exp=1;BM.seq={};BM.np=np;
-  if(BM.hroom!==NET.room){BM.hroom=NET.room;NET.room.sub('bm/in',m=>{
-    const i=NET.roster.indexOf(m.from),s=BM.sim;if(i<0||!s||!s.p[i])return;
-    if(m.n===undefined||m.n>(BM.seq[i]||0)){BM.seq[i]=m.n;bmInput(s,i,m)}   // the 3 brokers can deliver out of order: only a newer message may change the direction
-    else if(m.bomb)bmInput(s,i,{dx:s.p[i].dx,dy:s.p[i].dy,bomb:1});
-    if(m.bomb)bmPub();
-  })}
+  if(BM.hroom!==NET.room){BM.hroom=NET.room;NET.room.sub('bm/in',m=>{const i=NET.roster.indexOf(m.from);if(i>=0)bmHandle(i,m)})}
   const each={};for(let i=0;i<n;i++)each[i]={html:'',w:{name:'bomber',params:{i,np,names:S.players.map(p=>p.name),w:BM.sim.w,h:BM.sim.h}}};
   netShow('each','',{each,expect:[],wait:'<p class=k>ボンバー酒場</p><h2>対戦中</h2>'});
   BM.iv=setInterval(bmStep,BTICK);
@@ -858,9 +864,10 @@ WID.bomber=(p,done)=>{
   render(`<div class=bmroot><div class=bmtop><div id=bmst class=bmst></div>${play?'<button type=button id=bmsens class="alt sm bmsens"></button>':''}</div><canvas id=bmc width=${cols*T} height=${rows*T}></canvas><div id=bmme class=bmme></div>
   ${play?`<div class=bmpad><div class=stick id=stk aria-label="移動スティック"><div class=sbase><i class=a1>▲</i><i class=a2>▶</i><i class=a3>▼</i><i class=a4>◀</i><b class=knob></b></div></div><button id=bb class=bombbtn aria-label="爆弾">💣</button></div>`:'<p class=muted>観戦中</p>'}</div>`,()=>{
     document.documentElement.classList.add('bm');   // landscape: let #app use the full width (no :has() needed)
-    const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,sx=0,sy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,predT=0;
-    const send=bomb=>{const m={dx,dy,ax:sx,ay:sy,bomb:bomb?1:0,n:++seq};if(NET.host){bmInput(BM.sim,0,m);if(bomb)bmPub()}else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
-    const dir=(x,y,a,b)=>{bmSnd('');dx=x;dy=y;sx=a||0;sy=b||0;send(0)};
+    const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,sx=0,sy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,lastAxis='';
+    const hist=new Map();   // seq -> the cell I reported with it, so the host's acknowledgement can be checked exactly
+    const send=bomb=>{const m={dx,dy,ax:sx,ay:sy,px:pred?pred.x:null,py:pred?pred.y:null,bomb:bomb?1:0,n:++seq};hist.set(seq,[m.px,m.py]);hist.delete(seq-120);if(NET.host)bmHandle(0,m);else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
+    const dir=(x,y,a,b)=>{bmSnd('');dx=x;dy=y;sx=a||0;sy=b||0;if(pred)pred.act=performance.now();send(0)};
     if(play){
       let sens=1;try{sens=Math.max(0,Math.min(2,+localStorage.getItem('dk_stick')||1))}catch(_){}
       const SENS=[24,15,9],SNAME=['鈍め','標準','敏感'],sb=$('#bmsens');if(sb){sb.textContent='スティック '+SNAME[sens];sb.onclick=()=>{sens=(sens+1)%3;sb.textContent='スティック '+SNAME[sens];try{localStorage.setItem('dk_stick',sens)}catch(_){}}}   // per-phone sensitivity: how far the knob must move before the skull walks
@@ -870,9 +877,9 @@ WID.bomber=(p,done)=>{
         const d=Math.hypot(vx,vy),k=d>R?R/d:1;knob.style.transform=`translate(${vx*k}px,${vy*k}px)`;
         const ax=Math.abs(vx),ay=Math.abs(vy);let nx=0,ny=0,qx=0,qy=0;
         if(d>(dx||dy?SENS[sens]*.67:SENS[sens])){   // 8 directions: near an axis = straight, in between = diagonal (main axis sticks to the one already in use, the other is the fallback)
-          if(ay<ax*.414)nx=Math.sign(vx);
-          else if(ax<ay*.414)ny=Math.sign(vy);
-          else{const horiz=dx!==0?true:dy!==0?false:ax>=ay;if(horiz){nx=Math.sign(vx);qy=Math.sign(vy)}else{ny=Math.sign(vy);qx=Math.sign(vx)}}
+          if(ay<ax*.577)nx=Math.sign(vx);
+          else if(ax<ay*.577)ny=Math.sign(vy);
+          else{const horiz=dx!==0?ax>=ay*.85:dy!==0?ax>ay*1.18:ax>=ay;if(horiz){nx=Math.sign(vx);qy=Math.sign(vy)}else{ny=Math.sign(vy);qx=Math.sign(vx)}}
         }
         if(nx!==dx||ny!==dy||qx!==sx||qy!==sy)dir(nx,ny,qx,qy);
       };
@@ -885,7 +892,7 @@ WID.bomber=(p,done)=>{
       window.oncontextmenu=e=>{if(BM.tok===tok)e.preventDefault()};   // long-press on the pad must not open the browser menu
       window.onkeydown=e=>{if(BM.tok!==tok)return;if(e.key===' '){e.preventDefault();send(1);placeGhost()}else if(K[e.key]&&!e.repeat){e.preventDefault();dir(...K[e.key])}};
       window.onkeyup=e=>{if(BM.tok!==tok)return;const k=K[e.key];if(k&&dx===k[0]&&dy===k[1])dir(0,0)};
-      S.tmr=setInterval(()=>{if(dx||dy)send(0)},250);   // re-send the held direction (the host drops it if it goes quiet)
+      S.tmr=setInterval(()=>{if(dx||dy||(pred&&performance.now()-pred.moved<1500))send(0)},250);   // keep telling the host where I am (heals a lost message)
     }
     const fitCv=()=>{   // the whole screen (status, map, chips, controls) must fit without scrolling: shrink the map by whatever overflows
       const vh=(window.visualViewport&&window.visualViewport.height)||window.innerHeight,land=matchMedia('(orientation:landscape) and (max-height:540px)').matches;
@@ -950,9 +957,20 @@ WID.bomber=(p,done)=>{
     const predStep=(st,dt,now,hx,hy)=>{
       const m=st.p[me];pred.cd-=dt*1000;
       if(st.ph==='play'&&pred.cd<=0&&(dx||dy)){
-        for(const[ux,uy]of(sx||sy)?[[dx,dy],[sx,sy]]:[[dx,dy]]){const nx=pred.x+(m[4]?-ux:ux),ny=pred.y+(m[4]?-uy:uy);if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=m[7]*BTICK;break}}
+        const cand=(sx||sy)?[[dx,dy],[sx,sy]]:[[dx,dy]];
+        if(cand.length===2&&((lastAxis==='x'&&cand[1][1]!==0)||(lastAxis==='y'&&cand[1][0]!==0)))cand.reverse();   // diagonal: take the turn first, keep going straight otherwise
+        for(const[ux,uy]of cand){
+          const nx=pred.x+(m[4]?-ux:ux),ny=pred.y+(m[4]?-uy:uy);
+          if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=m[7]*BTICK;pred.moved=pred.act=now;lastAxis=uy?'y':'x';send(0);pred.hop=seq;break}
+        }
       }
-      if(!dx&&!dy&&(pred.x!==hx||pred.y!==hy)&&now-predT>350){pred.x=hx;pred.y=hy}   // idle and still disagreeing: trust the host
+      // Reconcile exactly, whatever the latency: the state says "I have processed your message #ak and your skull is here".
+      // If that is not the cell I reported in message #ak, the host refused a move, so go to where the host has me. Anything else is just lag.
+      if(st!==pred.chk){
+        pred.chk=st;const e=st.ak&&hist.get(st.ak[me]);
+        if(e&&e[0]!=null&&(e[0]!==hx||e[1]!==hy)){pred.x=hx;pred.y=hy;pred.cd=0}
+        else if(Math.abs(pred.x-hx)+Math.abs(pred.y-hy)>=12){pred.x=hx;pred.y=hy;pred.cd=0}   // safety net only
+      }
     };
     const events=(st,pv)=>{
       if(st.ph==='ready'&&(!pv||Math.ceil(pv.rc/(10*BK))!==Math.ceil(st.rc/(10*BK))))bmSnd('count');
@@ -978,8 +996,7 @@ WID.bomber=(p,done)=>{
         st.p.forEach(([x,y,a],i)=>{
           let tx=x,ty=y,sp=16;
           if(i===me&&play&&a){   // own skull is predicted locally so the pad feels instant; the host state corrects it
-            if(!pred||Math.abs(pred.x-x)+Math.abs(pred.y-y)>=4){pred={x,y,cd:0};predT=now}
-            predT=pred.x===x&&pred.y===y?now:predT;
+            if(!pred)pred={x,y,cd:0,moved:0,act:0,hop:0};
             predStep(st,dt,now,x,y);tx=pred.x;ty=pred.y;sp=28}
           const v=BM.vis[i]||(BM.vis[i]={x:tx,y:ty}),k=Math.min(1,dt*sp);v.x+=(tx-v.x)*k;v.y+=(ty-v.y)*k;if(Math.abs(tx-v.x)>2||Math.abs(ty-v.y)>2){v.x=tx;v.y=ty}
         });
@@ -1440,5 +1457,5 @@ $('#app').addEventListener('click',e=>{
   if(back&&load()){try{history.replaceState(null,'',location.pathname)}catch(e){}importInv();hub()}else setup();
 })();
 try{if((navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||(navigator.deviceMemory&&navigator.deviceMemory<=2))document.documentElement.classList.add('calm')}catch(e){}
-window.__bar={S,A,NET,WID,matchAns,normAns,DRAW,BM,bmNew,bmTick,bmInput,bmMsg,bmDims};
+window.__bar={S,A,NET,WID,matchAns,normAns,DRAW,BM,bmNew,bmTick,bmInput,bmMove,bmMsg,bmDims};
 </script>
