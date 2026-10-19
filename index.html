@@ -32,7 +32,7 @@ b.hl{color:var(--amber)}
 .chip{flex:0 0 auto;min-height:0;min-width:70px;text-align:left;font:700 12px/1.35 var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
 .chip.tg{outline:2px solid var(--amber)} .chip.dead{opacity:.4} .chip.me{border-color:var(--amber)}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <div class="stage"><div id="chips"></div><canvas id="cv"></canvas><div id="ov" class="ov"></div></div>
 <script>
 (()=>{
@@ -47,57 +47,55 @@ function sfx(f,ms,vol=.05,type='square'){if(mute)return;try{const A=window.Audio
 const say=(text,col='#f3e9dc')=>{G.msg.push({text,col,t:2});if(G.msg.length>4)G.msg.shift()};
 
 
-/* ================= P2P fallback (no login, no server of our own) =================
+/* ================= relay fallback (no login, no server of our own) =================
    Same shape as the platform `room` (join -> peers/presence/onPeers/connected/leave).
-   Star topology: the room creator is the hub, everyone else connects to it over WebRTC. */
-function p2pRoom(){
-  return{join:(name,isHost)=>new Promise((resolve,reject)=>{
-    const hid='dokuro-saloon-inv-'+name,state=new Map(),hs=new Set(),conns=new Map();
-    let me=null,alive=false,hostConn=null,peer=null,t1=0,tp=0,done=false;
+   Each player publishes their presence as a retained message on a public MQTT broker over wss, so any network pairing works.
+   Two brokers are used at once; either one alone is enough. */
+function mqttRoom(){
+  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+  return{join:name=>new Promise((resolve,reject)=>{
+    const id=Math.random().toString(36).slice(2,10),base='dokuro-saloon-inv/'+name+'/',state=new Map(),hs=new Set(),cs=[];
+    let done=false,cur={},tp=0,failed=0,lastErr='',to=0,hb=0;
     const fire=()=>hs.forEach(h=>{try{h({})}catch(e){}});
-    const upd=(id,p)=>state.set(id,{presence:p,upd:Date.now()});
-    const bcast=()=>{clearTimeout(t1);t1=setTimeout(()=>{const all=[...state].map(([i,x])=>[i,x.presence]);conns.forEach(c=>{try{c.send({t:'all',s:all})}catch(e){}})},60)};
-    const fail=e=>{if(!done){done=true;reject(e)}};
+    const push=()=>{const pl=JSON.stringify({p:cur,t:Date.now()});cs.forEach(o=>{if(o.up)try{o.m.publish(base+id,pl,{retain:true,qos:0})}catch(e){}})};
+    const bad=e=>{lastErr=(e&&e.message)||String(e);if(!done&&++failed>=BROKERS.length){done=true;clearTimeout(to);reject(new Error(lastErr))}};
     const api={
-      peers:()=>[...state].map(([p,x])=>({peer:p,sameTab:p===me,isMe:p===me,kind:'viewer',guest:false,presence:x.presence,updatedAt:x.upd})),
+      peers:()=>[...state].map(([p,x])=>({peer:p,sameTab:p===id,isMe:p===id,kind:'viewer',guest:false,presence:x.presence,updatedAt:x.upd})),
       presence:async patch=>{
-        const cur={...((state.get(me)||{}).presence||{})};
-        for(const [k,v] of Object.entries(patch)){if(v===null)delete cur[k];else cur[k]=v}
-        upd(me,cur);
-        if(isHost)bcast();
-        else{clearTimeout(tp);tp=setTimeout(()=>{try{hostConn&&hostConn.open&&hostConn.send({t:'pres',p:state.get(me).presence})}catch(e){}},80)}
+        cur={...cur};for(const [k,v] of Object.entries(patch)){if(v===null)delete cur[k];else cur[k]=v}
+        state.set(id,{presence:cur,upd:Date.now()});
+        if(!tp)tp=setTimeout(()=>{tp=0;push()},100);
         fire();
       },
       onPeers:h=>{hs.add(h);setTimeout(()=>h({}),1);return()=>hs.delete(h)},
-      connected:()=>alive,
-      leave:async()=>{alive=false;try{peer&&peer.destroy()}catch(e){}}
+      connected:()=>cs.some(o=>o.up),
+      leave:async()=>{clearInterval(hb);clearTimeout(tp);cs.forEach(o=>{try{o.m.publish(base+id,'',{retain:true});o.m.end(true)}catch(e){}})}
     };
-    if(isHost){
-      peer=new Peer(hid);
-      peer.on('open',id=>{me=id;alive=true;upd(me,{});done=true;resolve(api)});
-      peer.on('error',fail);
-      peer.on('connection',c=>{
-        c.on('open',()=>{conns.set(c.peer,c);bcast()});
-        c.on('data',m=>{if(m&&m.t==='pres'){upd(c.peer,m.p||{});bcast();fire()}});
-        c.on('close',()=>{conns.delete(c.peer);state.delete(c.peer);bcast();fire()});
-      });
-    }else{
-      peer=new Peer();
-      peer.on('error',fail);
-      peer.on('open',id=>{
-        me=id;upd(me,{});
-        const c=peer.connect(hid,{reliable:true}),to=setTimeout(()=>fail(new Error('timeout')),10000);
-        hostConn=c;
-        c.on('open',()=>{clearTimeout(to);alive=true;done=true;resolve(api)});
-        c.on('data',m=>{if(m&&m.t==='all'){const mine=state.get(me);state.clear();m.s.forEach(([i,p])=>{if(i!==me)upd(i,p)});if(mine)state.set(me,mine);fire()}});
-        c.on('close',()=>{alive=false;fire()});
-      });
-    }
+    BROKERS.forEach((url,i)=>{
+      const o={m:null,up:false};cs.push(o);
+      try{
+        const m=o.m=mqtt.connect(url,{clientId:'dk_'+id+'_'+i,clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:20,will:{topic:base+id,payload:'',retain:true,qos:0}});
+        m.on('connect',()=>{m.subscribe(base+'+',{qos:0},err=>{
+          if(err)return bad(err);
+          o.up=true;state.set(id,{presence:cur,upd:Date.now()});push();
+          if(!done){done=true;clearTimeout(to);resolve(api)}fire()})});
+        m.on('close',()=>{o.up=false;fire()});
+        m.on('error',bad);
+        m.on('message',(topic,buf)=>{
+          const pid=topic.slice(base.length);if(pid===id)return;
+          if(!buf.length){if(state.delete(pid))fire();return}
+          try{const m2=JSON.parse(buf.toString());state.set(pid,{presence:m2.p||{},upd:Date.now()});fire()}catch(e){}
+        });
+      }catch(e){bad(e)}
+    });
+    to=setTimeout(()=>{if(!done){done=true;reject(new Error(lastErr||'timeout'))}},10000);
+    /* keepalive + drop peers that went silent (a crashed tab leaves a retained message behind) */
+    hb=setInterval(()=>{push();const now=Date.now();let ch=false;state.forEach((x,k)=>{if(k!==id&&now-x.upd>12000){state.delete(k);ch=true}});if(ch)fire()},3000);
   })};
 }
 
 /* ================= versus layer ================= */
-const V={mode:null,phase:'menu',name:'',code:'',host:false,room:null,unsub:null,run:0,lastGo:0,seen:{},pl:{},bots:[],target:null,ended:false,lastPub:0,lastChip:0,lastEnd:0,maxP:1};
+const V={mode:null,phase:'menu',name:'',code:'',host:false,room:null,unsub:null,run:0,lastGo:0,seen:{},seenRun:{},pl:{},bots:[],target:null,ended:false,lastPub:0,lastChip:0,lastEnd:0,maxP:1};
 try{V.name=localStorage.getItem('dk_name')||''}catch(e){}
 const rp=patch=>V.room?V.room.presence(patch).catch(e=>{V.err=(e&&e.code)||'error'}):Promise.resolve();
 const myId=()=>{if(V.mode!=='room')return'me';const m=V.room&&V.room.peers().find(p=>p.sameTab);return m?m.peer:'me'};
@@ -150,9 +148,12 @@ function vsTick(dt){
 }
 function vsCheckEnd(){
   if(V.ended)return;
-  const ps=inRun();V.maxP=Math.max(V.maxP,ps.length);
-  const alive=ps.filter(p=>p.alive);
-  if(V.maxP>=2&&alive.length<=1&&!(G.state==='intro'&&G.wave===1&&G.t<2))vsEnd();
+  const ps=inRun(),now=Date.now();
+  ps.forEach(p=>{V.seenRun[p.id]={alive:!!p.alive,t:now}});
+  /* ponytail: a rival missing from the list (network blip) still counts as alive for 15s, so a hiccup never hands out a false win */
+  const ids=Object.keys(V.seenRun);V.maxP=Math.max(V.maxP,ids.length);
+  const aliveN=ids.filter(id=>{const x=V.seenRun[id];return ps.some(p=>p.id===id)?x.alive:(x.alive&&now-x.t<15000)}).length;
+  if(V.maxP>=2&&aliveN<=1&&!(G.state==='intro'&&G.wave===1&&G.t<2))vsEnd();
 }
 function vsEnd(){
   V.ended=true;V.phase='result';G.state='over';vsPub(true);
@@ -167,7 +168,7 @@ function vsEnd(){
   <button class="alt" data-a="vsmenu">対戦メニューへ</button>`;
 }
 function startVS(run){
-  V.run=run;V.lastGo=run;V.phase='play';V.seen={};V.ended=false;V.maxP=1;V.lastEnd=performance.now();
+  V.run=run;V.lastGo=run;V.phase='play';V.seen={};V.seenRun={};V.ended=false;V.maxP=1;V.lastEnd=performance.now();
   start(1,true);G.out={};
   if(V.mode==='room'&&V.room)rp({vs:1,name:V.name,run,out:{},alive:true,lives:3,diedAt:null,score:0,en:0,wave:1});
   vsPub(true);renderChips();
@@ -186,7 +187,7 @@ async function leaveRoom(){
 async function joinRoom(code,host){
   if(!ROOM)return;
   V.code=code;V.host=host;
-  try{V.room=await ROOM.join('dk-'+code,host)}catch(e){ov.innerHTML+=`<p class=muted>入室に失敗しました。もう一度試してください。</p>`;return}
+  try{V.room=await ROOM.join('dk-'+code)}catch(e){V.room=null;ov.innerHTML+=`<p class=muted>入室に失敗しました: ${esc((e&&e.message)||e)}</p>`;return}
   V.mode='room';V.phase='lobby';V.err='';V.baseGo=undefined;V.joinedAt=Date.now();
   V.unsub=V.room.onPeers(()=>{if(V.phase==='lobby')renderLobby();checkGo()});
   clearInterval(V.poll);V.poll=setInterval(()=>{if(!V.room)return;if(V.phase==='lobby')renderLobby();checkGo()},700);
@@ -426,10 +427,10 @@ cv.addEventListener('pointermove',steer);
 ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,e=>ptr.delete(e.pointerId)));
 addEventListener('keydown',e=>{keys[e.key]=true});addEventListener('keyup',e=>{keys[e.key]=false});
 
-window.__inv={start,update,draw,startCpu,vsTick,A,V,get G(){return G},steer:(p,x)=>{ptr.set(99,p);steer({pointerId:99,clientX:x})},setName:n=>{V.name=n}};
+window.__inv={start,update,draw,startCpu,vsTick,A,V,plist,get G(){return G},steer:(p,x)=>{ptr.set(99,p);steer({pointerId:99,clientX:x})},setName:n=>{V.name=n}};
 ctx.fillStyle='#120d0a';ctx.fillRect(0,0,W,H);
 showMain();
-const p2p=()=>window.Peer?p2pRoom():null;
+const p2p=()=>window.mqtt?mqttRoom():null;
 try{const c=window.claude;if(c&&c.use)c.use('room').then(r=>{ROOM=r||p2p()}).catch(()=>{ROOM=p2p()});else ROOM=p2p()}catch(e){ROOM=p2p()}
 })();
 </script>
