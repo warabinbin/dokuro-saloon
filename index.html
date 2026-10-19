@@ -1,0 +1,435 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ドクロ・インベーダー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* layout: one portrait arena; coop splits it into columns, versus gives each device the whole field and a chip bar of rivals */
+:root{--ink:#0e0b09;--panel:#1c1511;--line:#3a2d24;--fg:#f3e9dc;--mute:#a89886;--amber:#f0a63a;--red:#e0553a;--green:#5fae7a;--blue:#4aa3d8;
+--display:'Dela Gothic One','Hiragino Sans','Yu Gothic',sans-serif;--body:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--ink);color:var(--fg);font:500 16px/1.5 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;-webkit-user-select:none;user-select:none;display:flex;justify-content:center;box-sizing:border-box}
+.stage{position:relative;width:100%;max-width:min(480px,calc((100dvh - 112px)*0.6))}
+canvas{display:block;width:100%;height:auto;border-radius:14px;background:#120d0a;border:1px solid var(--line);touch-action:none}
+.ov{position:absolute;inset:0;top:var(--ovtop,0);display:flex;flex-direction:column;gap:12px;justify-content:center;padding:18px;background:rgba(14,11,9,.93);border-radius:14px;overflow:auto;box-sizing:border-box}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:30px;color:var(--amber)} h2{font-size:24px}
+p{margin:0} .muted{color:var(--mute);font-size:14px} .k{color:var(--amber);font-size:13px;letter-spacing:.12em}
+button{font:700 17px var(--body);background:var(--amber);color:#1c1308;border:0;border-radius:10px;min-height:52px;padding:8px 16px;cursor:pointer}
+button.alt{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
+button.sel{outline:3px solid var(--fg)}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+input{font:inherit;color:var(--fg);background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;box-sizing:border-box;-webkit-user-select:text;user-select:text}
+.row{display:flex;flex-wrap:wrap;gap:8px}.row>button{flex:1 1 52px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.pl{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}.pl:last-child{border:0}
+b.hl{color:var(--amber)}
+.code{font:400 44px var(--display);letter-spacing:.2em;color:var(--amber);text-align:center}
+#chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}
+#chips:empty{display:none}
+.chip{flex:0 0 auto;min-height:0;min-width:70px;text-align:left;font:700 12px/1.35 var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.chip.tg{outline:2px solid var(--amber)} .chip.dead{opacity:.4} .chip.me{border-color:var(--amber)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<div class="stage"><div id="chips"></div><canvas id="cv"></canvas><div id="ov" class="ov"></div></div>
+<script>
+(()=>{
+const W=360,H=600,COLS=['#f0a63a','#4aa3d8','#5fae7a','#e0553a','#c78bff','#f3e9dc','#ffd23f','#7bd0c1'],ROWC=['#e0553a','#f0a63a','#5fae7a','#4aa3d8','#c78bff'];
+const cv=document.getElementById('cv'),ov=document.getElementById('ov'),chipsEl=document.getElementById('chips'),ctx=cv.getContext('2d');
+const dpr=Math.min(2,window.devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;ctx.scale(dpr,dpr);
+let G=null,raf=0,lastT=0,N=3,mute=false,ac=null,ROOM=null;
+const rand=(a,b)=>a+Math.random()*(b-a),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),pick=a=>a[Math.random()*a.length|0];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const keys={};
+function sfx(f,ms,vol=.05,type='square'){if(mute)return;try{const A=window.AudioContext||window.webkitAudioContext;ac=ac||new A();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.value=vol;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+ms/1000)}catch(e){}}
+const say=(text,col='#f3e9dc')=>{G.msg.push({text,col,t:2});if(G.msg.length>4)G.msg.shift()};
+
+
+/* ================= P2P fallback (no login, no server of our own) =================
+   Same shape as the platform `room` (join -> peers/presence/onPeers/connected/leave).
+   Star topology: the room creator is the hub, everyone else connects to it over WebRTC. */
+function p2pRoom(){
+  return{join:(name,isHost)=>new Promise((resolve,reject)=>{
+    const hid='dokuro-saloon-inv-'+name,state=new Map(),hs=new Set(),conns=new Map();
+    let me=null,alive=false,hostConn=null,peer=null,t1=0,tp=0,done=false;
+    const fire=()=>hs.forEach(h=>{try{h({})}catch(e){}});
+    const upd=(id,p)=>state.set(id,{presence:p,upd:Date.now()});
+    const bcast=()=>{clearTimeout(t1);t1=setTimeout(()=>{const all=[...state].map(([i,x])=>[i,x.presence]);conns.forEach(c=>{try{c.send({t:'all',s:all})}catch(e){}})},60)};
+    const fail=e=>{if(!done){done=true;reject(e)}};
+    const api={
+      peers:()=>[...state].map(([p,x])=>({peer:p,sameTab:p===me,isMe:p===me,kind:'viewer',guest:false,presence:x.presence,updatedAt:x.upd})),
+      presence:async patch=>{
+        const cur={...((state.get(me)||{}).presence||{})};
+        for(const [k,v] of Object.entries(patch)){if(v===null)delete cur[k];else cur[k]=v}
+        upd(me,cur);
+        if(isHost)bcast();
+        else{clearTimeout(tp);tp=setTimeout(()=>{try{hostConn&&hostConn.open&&hostConn.send({t:'pres',p:state.get(me).presence})}catch(e){}},80)}
+        fire();
+      },
+      onPeers:h=>{hs.add(h);setTimeout(()=>h({}),1);return()=>hs.delete(h)},
+      connected:()=>alive,
+      leave:async()=>{alive=false;try{peer&&peer.destroy()}catch(e){}}
+    };
+    if(isHost){
+      peer=new Peer(hid);
+      peer.on('open',id=>{me=id;alive=true;upd(me,{});done=true;resolve(api)});
+      peer.on('error',fail);
+      peer.on('connection',c=>{
+        c.on('open',()=>{conns.set(c.peer,c);bcast()});
+        c.on('data',m=>{if(m&&m.t==='pres'){upd(c.peer,m.p||{});bcast();fire()}});
+        c.on('close',()=>{conns.delete(c.peer);state.delete(c.peer);bcast();fire()});
+      });
+    }else{
+      peer=new Peer();
+      peer.on('error',fail);
+      peer.on('open',id=>{
+        me=id;upd(me,{});
+        const c=peer.connect(hid,{reliable:true}),to=setTimeout(()=>fail(new Error('timeout')),10000);
+        hostConn=c;
+        c.on('open',()=>{clearTimeout(to);alive=true;done=true;resolve(api)});
+        c.on('data',m=>{if(m&&m.t==='all'){const mine=state.get(me);state.clear();m.s.forEach(([i,p])=>{if(i!==me)upd(i,p)});if(mine)state.set(me,mine);fire()}});
+        c.on('close',()=>{alive=false;fire()});
+      });
+    }
+  })};
+}
+
+/* ================= versus layer ================= */
+const V={mode:null,phase:'menu',name:'',code:'',host:false,room:null,unsub:null,run:0,lastGo:0,seen:{},pl:{},bots:[],target:null,ended:false,lastPub:0,lastChip:0,lastEnd:0,maxP:1};
+try{V.name=localStorage.getItem('dk_name')||''}catch(e){}
+const rp=patch=>V.room?V.room.presence(patch).catch(e=>{V.err=(e&&e.code)||'error'}):Promise.resolve();
+const myId=()=>{if(V.mode!=='room')return'me';const m=V.room&&V.room.peers().find(p=>p.sameTab);return m?m.peer:'me'};
+function plist(){
+  if(V.mode==='room'&&V.room)return V.room.peers().filter(p=>p.presence&&p.presence.vs).map(p=>({id:p.peer,isMe:p.sameTab,...p.presence}));
+  return Object.entries(V.pl).map(([id,p])=>({id,isMe:id==='me',...p}));
+}
+const inRun=()=>plist().filter(p=>p.run===V.run);
+function vsTarget(){
+  const rv=inRun().filter(p=>!p.isMe&&p.alive);if(!rv.length)return null;
+  const t=rv.find(p=>p.id===V.target);if(t)return t.id;
+  return rv.reduce((a,b)=>(b.score||0)>(a.score||0)?b:a).id;
+}
+function vsSend(n){const t=vsTarget();if(t)G.out[t]=(G.out[t]||0)+n}
+function vsPub(force){
+  if(!G||!G.vs)return;const now=performance.now();if(!force&&now-V.lastPub<200)return;V.lastPub=now;
+  const s=G.ships[0],st={vs:1,name:V.name,run:V.run,lives:s.lives,alive:s.alive,diedAt:s.alive?null:G.diedAt,score:G.score,en:G.en.length+G.dv.length,wave:G.wave,out:G.out};
+  if(V.mode==='room'&&V.room)rp(st);else Object.assign(V.pl.me||(V.pl.me={}),st);
+}
+function vsRecv(){
+  let d=0;
+  for(const p of inRun()){if(p.isMe)continue;const v=(p.out&&p.out[myId()])||0,sn=V.seen[p.id]||0;if(v>sn){d+=v-sn;V.seen[p.id]=v}}
+  if(d){G.pend+=d;say(`来襲 +${d}`,'#ff7a5c')}
+}
+function botTick(dt){
+  const t=(Date.now()-V.run)/1000;
+  for(const b of V.bots){
+    const p=V.pl[b.id];if(!p.alive)continue;
+    p.score+=dt*(8+b.skill*6);p.en=8+((t/9)|0)%6;
+    for(const [id,q] of Object.entries(V.pl)){if(id===b.id)continue;const v=(q.out&&q.out[b.id])||0,sn=b.seen[id]||0;if(v>sn){b.hp-=v-sn;b.seen[id]=v}}
+    p.lives=clamp(Math.ceil(b.hp/(b.hp0/3)),0,3);
+    if(b.hp<=0){p.alive=false;p.diedAt=Date.now()-V.run;continue}
+    b.acc+=dt*(.10+.06*b.skill)*(1+t/80);
+    while(b.acc>=1){b.acc-=1;const c=Object.entries(V.pl).filter(([id,q])=>id!==b.id&&q.alive);if(c.length){const [id]=pick(c);p.out[id]=(p.out[id]||0)+1}}
+  }
+}
+function renderChips(){
+  if(!G||!G.vs||V.phase!=='play'&&V.phase!=='result'){chipsEl.innerHTML='';return}
+  const tg=vsTarget();
+  chipsEl.innerHTML=inRun().map(p=>`<button class="chip ${p.isMe?'me':''} ${p.alive?'':'dead'} ${p.id===tg?'tg':''}" data-id="${esc(p.id)}">${esc(p.isMe?'あなた':(p.name||'?'))}<br>${'●'.repeat(Math.max(0,p.lives||0))}${'○'.repeat(Math.max(0,3-(p.lives||0)))} 敵${p.en|0}<br>${p.score|0}点</button>`).join('');
+}
+function vsTick(dt){
+  if(!G.vs||V.phase!=='play')return;
+  if(V.mode==='cpu')botTick(dt);
+  if(G.state==='play')vsRecv();
+  vsPub();
+  const now=performance.now();
+  if(now-V.lastChip>300){V.lastChip=now;renderChips()}
+  if(now-V.lastEnd>500){V.lastEnd=now;vsCheckEnd()}
+}
+function vsCheckEnd(){
+  if(V.ended)return;
+  const ps=inRun();V.maxP=Math.max(V.maxP,ps.length);
+  const alive=ps.filter(p=>p.alive);
+  if(V.maxP>=2&&alive.length<=1&&!(G.state==='intro'&&G.wave===1&&G.t<2))vsEnd();
+}
+function vsEnd(){
+  V.ended=true;V.phase='result';G.state='over';vsPub(true);
+  const rk=inRun().sort((a,b)=>(b.alive?1e15:b.diedAt||0)-(a.alive?1e15:a.diedAt||0));
+  const n=rk.length,me=rk.findIndex(p=>p.isMe);
+  ov.style.setProperty('--ovtop','0px');ov.style.display='flex';
+  const verdict=me===0?'あなたの勝ち!':`${me+1}位`;
+  ov.innerHTML=`<p class=k>RESULT</p><h2>${verdict}</h2>
+  <div class=card>${rk.map((p,i)=>`<div class=pl><span>${i+1}. ${esc(p.isMe?'あなた':(p.name||'?'))}</span><span>${p.score|0}点 / WAVE ${p.wave||1}</span></div>`).join('')}</div>
+  <p class=muted>${n>=2?`1位(${esc(rk[0].isMe?'あなた':rk[0].name||'?')})は誰か1人を指名。最下位(${esc(rk[n-1].isMe?'あなた':rk[n-1].name||'?')})はふた口${n>=3?`、下から2番目(${esc(rk[n-2].isMe?'あなた':rk[n-2].name||'?')})はひと口`:''}。`:''}</p>
+  ${V.mode==='cpu'||V.host?'<button data-a="again">もう一回</button>':'<p class=muted>ホストが「もう一回」を押すと始まります。</p>'}
+  <button class="alt" data-a="vsmenu">対戦メニューへ</button>`;
+}
+function startVS(run){
+  V.run=run;V.lastGo=run;V.phase='play';V.seen={};V.ended=false;V.maxP=1;V.lastEnd=performance.now();
+  start(1,true);G.out={};
+  if(V.mode==='room'&&V.room)rp({vs:1,name:V.name,run,out:{},alive:true,lives:3,diedAt:null,score:0,en:0,wave:1});
+  vsPub(true);renderChips();
+}
+function startCpu(k){
+  V.mode='cpu';V.phase='play';V.pl={me:{vs:1,name:V.name||'あなた',run:0,lives:3,alive:true,score:0,en:0,wave:1,out:{}}};V.bots=[];
+  for(let i=1;i<=k;i++){const id='bot'+i,skill=Math.random();V.bots.push({id,skill,hp:22,hp0:22,acc:0,seen:{}});V.pl[id]={vs:1,name:'CPU'+i,run:0,lives:3,alive:true,score:0,en:8,wave:1,out:{}}}
+  const run=Date.now();for(const p of Object.values(V.pl))p.run=run;
+  startVS(run);
+}
+async function leaveRoom(){
+  try{V.unsub&&V.unsub()}catch(e){}V.unsub=null;clearInterval(V.poll);V.poll=0;V.err='';
+  try{V.room&&await V.room.leave()}catch(e){}
+  V.room=null;V.mode=null;V.phase='menu';
+}
+async function joinRoom(code,host){
+  if(!ROOM)return;
+  V.code=code;V.host=host;
+  try{V.room=await ROOM.join('dk-'+code,host)}catch(e){ov.innerHTML+=`<p class=muted>入室に失敗しました。もう一度試してください。</p>`;return}
+  V.mode='room';V.phase='lobby';V.err='';V.baseGo=undefined;V.joinedAt=Date.now();
+  V.unsub=V.room.onPeers(()=>{if(V.phase==='lobby')renderLobby();checkGo()});
+  clearInterval(V.poll);V.poll=setInterval(()=>{if(!V.room)return;if(V.phase==='lobby')renderLobby();checkGo()},700);
+  rp({vs:1,name:V.name,host:host,run:0,go:null,alive:false,out:{}});
+  renderLobby();
+}
+function checkGo(manual){
+  if(V.mode!=='room'||!V.room||V.host||(V.phase!=='lobby'&&V.phase!=='result'))return;
+  const hp=V.room.peers().find(p=>p.presence&&p.presence.host),go=hp&&hp.presence.go;
+  /* ponytail: the start signal present when the host first appears belongs to an earlier match, so it is remembered and skipped */
+  if(V.baseGo===undefined&&!manual){if(hp)V.baseGo=go||0;return}
+  if(go&&go!==V.lastGo&&(manual||go!==V.baseGo))startVS(go);
+}
+function renderLobby(){
+  const ps=V.room.peers().filter(p=>p.presence&&p.presence.vs);
+  ov.style.setProperty('--ovtop','0px');ov.style.display='flex';
+  ov.innerHTML=`<p class=k>部屋コード</p><div class=code>${esc(V.code.toUpperCase())}</div><p class=muted>友だちに、このコードを伝えて入ってもらう。</p>
+  <div class=card>${ps.map(p=>`<div class=pl><span>${esc(p.presence.name||'?')}${p.presence.host?'(ホスト)':''}</span><span>${p.sameTab?'あなた':''}</span></div>`).join('')||'<p class=muted>接続中…</p>'}</div>
+  ${V.host?`<button data-a="gostart" ${ps.length<2?'disabled':''}>${ps.length<2?'2人以上で開始できる':'対戦開始'}</button>`:'<p class=muted>ホストが開始するまで待機…</p><button class="alt" data-a="force">開始したのに始まらない時はここ</button>'}
+  <p class=muted>接続:${V.room.connected()?'OK':'NG'} / ${ps.length}人 / ホスト${ps.some(p=>p.presence.host)?'あり':'なし'}${ps.some(p=>p.presence.go)?' / 開始信号あり':''}${V.err?' / エラー:'+esc(V.err):''}</p>
+  <button class="alt" data-a="vsmenu">部屋を出る</button>`;
+}
+
+/* ================= game core ================= */
+function start(n,vs=false){
+  const c=W/n;
+  G={n,c,vs,ships:Array.from({length:n},(_,p)=>({p,x:c*p+c/2,tx:c*p+c/2,y:H-62,lives:3,alive:true,inv:0,cd:rand(0,.3),kills:0,hits:0,rapid:0,tri:0,shield:0})),
+    bul:[],eb:[],en:[],dv:[],it:[],pt:[],stars:Array.from({length:40},()=>({x:rand(0,W),y:rand(0,H),s:rand(10,40)})),
+    wave:0,score:0,state:'intro',timer:1.6,dir:1,fire:1.2,msg:[],t:0,total:1,atk:0,out:{},pend:0,pendT:0,diedAt:null};
+  ov.style.display='none';ov.innerHTML='';
+  nextWave();lastT=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
+}
+function nextWave(){
+  const g=G;g.wave++;g.state='intro';g.timer=1.6;g.en=[];g.eb=[];g.bul=[];g.dir=1;
+  g.ships.forEach(s=>{if(g.wave>1&&s.alive){s.lives=Math.min(3,s.lives+(g.vs?0:1))}if(g.wave>1&&!s.alive&&!g.vs){s.alive=true;s.lives=1}s.inv=1.5});
+  if(g.wave%3===0){const hp=(g.vs?18:30*g.n)+10*g.wave;g.en.push({boss:1,x:W/2,y:90,w:96,h:60,hp,max:hp,vx:60});g.total=1}
+  else{const cols=Math.min(10,4+g.n),rows=Math.min(5,(g.n===1&&!g.vs?2:3)+(g.wave>3?1:0)+(g.wave>6?1:0)),hp=Math.round((2+Math.floor((g.wave-1)/2))*(0.4+0.55*g.n));
+    for(let r=0;r<rows;r++)for(let k=0;k<cols;k++)g.en.push({x:(W-(cols-1)*30)/2+k*30,y:70+r*30,w:22,h:22,hp:hp+(r===0?1:0),max:hp+(r===0?1:0),row:r});
+    g.total=g.en.length}
+}
+function boom(x,y,col,k=8){for(let i=0;i<k;i++)G.pt.push({x,y,vx:rand(-90,90),vy:rand(-90,90),l:rand(.3,.7),c:col})}
+function spawnDiver(){G.dv.push({x:rand(20,W-20),y:-12,w:20,h:20,hp:2,max:2,vy:rand(52,72)+G.wave*2,fire:rand(1,3),dive:1})}
+function hitShip(s){
+  if(!s.alive||s.inv>0)return;
+  if(s.shield>0){s.shield=0;s.inv=.6;sfx(300,80);return}
+  s.lives--;s.hits++;s.inv=1.6;boom(s.x,s.y,COLS[s.p],14);sfx(110,200,.08,'sawtooth');
+  try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}
+  say(G.vs?'被弾!':`P${s.p+1} 被弾! ひと口`,COLS[s.p]);
+  if(s.lives<=0){
+    s.alive=false;
+    if(G.vs){G.diedAt=Date.now()-V.run;G.state='out';vsPub(true);ov.style.display='flex';ov.style.setProperty('--ovtop','34%');ov.innerHTML=`<h2>脱落</h2><p class=muted>他の人の決着を待っています。</p>`}
+    else say(`P${s.p+1} 脱落`,'#e0553a');
+  }
+}
+function onKill(e,own){
+  const g=G,o=g.ships[own];o.kills++;g.score+=e.boss?300:(e.dive?5:10*g.wave);
+  if(g.vs){g.atk+=e.boss?8:(e.dive?.25:.5);while(g.atk>=1){g.atk-=1;vsSend(1)}}
+}
+function update(dt){
+  const g=G;g.t+=dt;
+  g.stars.forEach(s=>{s.y+=s.s*dt;if(s.y>H){s.y=0;s.x=rand(0,W)}});
+  g.msg.forEach(m=>m.t-=dt);g.msg=g.msg.filter(m=>m.t>0);
+  g.pt.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.l-=dt});g.pt=g.pt.filter(p=>p.l>0);
+  if(g.state==='out')return;
+  const s0=g.ships[0];if(keys.ArrowLeft)s0.tx=clamp(s0.x-120,12,g.c-12);if(keys.ArrowRight)s0.tx=clamp(s0.x+120,12,g.c-12);
+  g.ships.forEach(s=>{
+    if(!s.alive)return;
+    s.x+=clamp(s.tx-s.x,-340*dt,340*dt);s.inv=Math.max(0,s.inv-dt);s.rapid=Math.max(0,s.rapid-dt);s.tri=Math.max(0,s.tri-dt);
+    if(g.state==='play'){s.cd-=dt;if(s.cd<=0){s.cd=s.rapid>0?.17:.36;
+      g.bul.push({x:s.x,y:s.y-14,vx:0,vy:-520,own:s.p,dmg:1});
+      if(s.tri>0){g.bul.push({x:s.x,y:s.y-12,vx:-110,vy:-500,own:s.p,dmg:1});g.bul.push({x:s.x,y:s.y-12,vx:110,vy:-500,own:s.p,dmg:1})}}}
+  });
+  if(g.state==='intro'){g.timer-=dt;if(g.timer<=0)g.state='play';return}
+  if(g.state==='clear'){g.timer-=dt;g.bul.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt});if(g.timer<=0)nextWave();return}
+  if(g.state!=='play')return;
+  const boss=g.en[0]&&g.en[0].boss?g.en[0]:null;
+  if(boss){boss.x+=boss.vx*dt;if(boss.x<boss.w/2+6||boss.x>W-boss.w/2-6){boss.vx*=-1;boss.x=clamp(boss.x,boss.w/2+6,W-boss.w/2-6)}boss.y=Math.min(150,boss.y+3*dt)}
+  else if(g.en.length){
+    const sp=(40+g.wave*5)*(1+(1-g.en.length/g.total)*1.6);let mn=1e9,mx=-1e9;
+    g.en.forEach(e=>{e.x+=g.dir*sp*dt;mn=Math.min(mn,e.x);mx=Math.max(mx,e.x)});
+    if((g.dir>0&&mx+12>=W-6)||(g.dir<0&&mn-12<=6)){g.dir*=-1;g.en.forEach(e=>e.y+=10)}
+  }
+  g.fire-=dt;
+  if(g.fire<=0&&g.en.length){
+    g.fire=(boss?.9:Math.max(.22,1.1-g.wave*.05)/(.6+.2*g.n));
+    if(boss){for(let k=-2;k<=2;k++){const a=Math.PI/2+k*.28;g.eb.push({x:boss.x,y:boss.y+boss.h/2,vx:Math.cos(a)*150,vy:Math.sin(a)*150})}}
+    else{const low=g.en.filter(e=>!g.en.some(o=>o!==e&&Math.abs(o.x-e.x)<10&&o.y>e.y));const e=pick(low);g.eb.push({x:e.x,y:e.y+10,vx:0,vy:150+g.wave*10})}
+  }
+  // versus: incoming divers
+  if(g.vs){
+    g.pendT-=dt;if(g.pend>0&&g.pendT<=0){spawnDiver();g.pend--;g.pendT=.45}
+    g.dv.forEach(d=>{d.y+=d.vy*dt;d.fire-=dt;if(d.fire<=0){d.fire=rand(1.5,3);g.eb.push({x:d.x,y:d.y+8,vx:0,vy:130})}
+      const s=g.ships[0];if(s.alive&&Math.hypot(d.x-s.x,d.y-s.y)<16){hitShip(s);d.dead=1;boom(d.x,d.y,'#c78bff',6)}
+      else if(d.y>H-30){hitShip(s);d.dead=1}});
+    g.dv=g.dv.filter(d=>!d.dead);
+  }
+  g.bul.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt});
+  g.eb.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt});
+  g.bul.forEach(b=>{for(const e of g.en.concat(g.dv)){
+    if(e.dead||Math.abs(b.x-e.x)>=e.w/2+3||Math.abs(b.y-e.y)>=e.h/2+4)continue;
+    b.dead=1;e.hp-=b.dmg;e.flash=.08;boom(b.x,b.y,'#f3e9dc',2);
+    if(e.hp<=0){e.dead=1;onKill(e,b.own);boom(e.x,e.y,e.boss?'#e0553a':e.dive?'#c78bff':ROWC[e.row%5],e.boss?40:10);sfx(e.boss?90:520+Math.random()*200,e.boss?400:60,.05);
+      if(e.boss)say('BOSS撃破!','#f0a63a');
+      else if(!e.dive&&Math.random()<.1)g.it.push({x:e.x,y:e.y,k:pick(['R','T','S','B'])})}
+    break}});
+  g.en.concat(g.dv).forEach(e=>{if(e.flash)e.flash=Math.max(0,e.flash-dt)});
+  g.en=g.en.filter(e=>!e.dead);g.dv=g.dv.filter(e=>!e.dead);g.bul=g.bul.filter(b=>!b.dead&&b.y>-10&&b.x>-10&&b.x<W+10);
+  g.eb.forEach(b=>{for(const s of g.ships)if(s.alive&&Math.hypot(b.x-s.x,b.y-s.y)<12){hitShip(s);b.dead=1;break}});
+  g.eb=g.eb.filter(b=>!b.dead&&b.y<H+10&&b.x>-10&&b.x<W+10);
+  g.it.forEach(i=>{i.y+=90*dt;for(const s of g.ships)if(s.alive&&Math.hypot(i.x-s.x,i.y-s.y)<20){
+    i.dead=1;sfx(880,90,.05);
+    if(i.k==='R'){s.rapid=8;say(g.vs?'連射':`P${s.p+1} 連射`,COLS[s.p])}
+    if(i.k==='T'){s.tri=8;say(g.vs?'3方向':`P${s.p+1} 3方向`,COLS[s.p])}
+    if(i.k==='S'){s.shield=1;say(g.vs?'シールド':`P${s.p+1} シールド`,COLS[s.p])}
+    if(i.k==='B'){g.en.concat(g.dv).forEach(e=>{e.hp-=3;e.flash=.1;if(e.hp<=0){e.dead=1;onKill(e,s.p);boom(e.x,e.y,'#f0a63a',6)}});g.eb=[];say(g.vs?'ボム!':`P${s.p+1} ボム!`,'#f0a63a');sfx(70,350,.08,'sawtooth')}
+    break}});
+  g.it=g.it.filter(i=>!i.dead&&i.y<H+10);g.en=g.en.filter(e=>!e.dead);g.dv=g.dv.filter(e=>!e.dead);
+  if(g.state!=='play')return;
+  if(!g.en.length){g.state='clear';g.timer=1.8;g.score+=100*g.wave;say(`WAVE ${g.wave} CLEAR`,'#5fae7a');
+    if(g.vs){g.atk+=3+g.wave;while(g.atk>=1){g.atk-=1;vsSend(1)}}}
+  else if(!g.vs&&!g.ships.some(s=>s.alive))over('全滅');
+  else if(g.en.some(e=>!e.boss&&e.y+e.h/2>H-110)){
+    if(g.vs){hitShip(g.ships[0]);g.en.forEach(e=>e.y-=70)}else over('侵略された');
+  }
+}
+function over(reason){G.state='over';showResult(reason)}
+
+/* ---- drawing ---- */
+function skull(x,y,w,h,col,flash){
+  ctx.fillStyle=flash?'#fff':col;ctx.beginPath();ctx.ellipse(x,y-h*.08,w*.48,h*.42,0,0,7);ctx.fill();
+  ctx.fillRect(x-w*.26,y+h*.18,w*.52,h*.28);
+  ctx.fillStyle='#120d0a';ctx.beginPath();ctx.arc(x-w*.18,y-h*.1,w*.1,0,7);ctx.arc(x+w*.18,y-h*.1,w*.1,0,7);ctx.fill();
+  ctx.fillRect(x-w*.04,y+h*.04,w*.08,h*.1);
+  ctx.fillRect(x-w*.12,y+h*.3,w*.03,h*.14);ctx.fillRect(x+w*.09,y+h*.3,w*.03,h*.14);ctx.fillRect(x-w*.015,y+h*.3,w*.03,h*.14);
+}
+function draw(){
+  const g=G;ctx.fillStyle='#120d0a';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(243,233,220,.35)';g.stars.forEach(s=>ctx.fillRect(s.x,s.y,1.5,1.5));
+  ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=1;
+  for(let k=1;k<g.n;k++){ctx.beginPath();ctx.moveTo(g.c*k,0);ctx.lineTo(g.c*k,H);ctx.stroke()}
+  g.en.forEach(e=>{
+    skull(e.x,e.y,e.w,e.h,e.boss?'#e0553a':ROWC[e.row%5],e.flash>0);
+    if(e.boss){ctx.fillStyle='#3a2d24';ctx.fillRect(e.x-e.w/2,e.y-e.h/2-12,e.w,6);ctx.fillStyle='#e0553a';ctx.fillRect(e.x-e.w/2,e.y-e.h/2-12,e.w*e.hp/e.max,6)}});
+  g.dv.forEach(d=>skull(d.x,d.y,d.w,d.h,'#c78bff',d.flash>0));
+  g.bul.forEach(b=>{ctx.fillStyle=COLS[b.own];ctx.fillRect(b.x-1.5,b.y-6,3,10)});
+  ctx.fillStyle='#ff7a5c';g.eb.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,3.5,0,7);ctx.fill()});
+  g.it.forEach(i=>{ctx.fillStyle={R:'#ffd23f',T:'#4aa3d8',S:'#5fae7a',B:'#e0553a'}[i.k];ctx.beginPath();ctx.arc(i.x,i.y,10,0,7);ctx.fill();ctx.fillStyle='#120d0a';ctx.font='700 12px sans-serif';ctx.textAlign='center';ctx.fillText(i.k,i.x,i.y+4)});
+  g.ships.forEach(s=>{
+    if(!s.alive)return;
+    if(s.inv>0&&((s.inv*12)|0)%2)return;
+    ctx.fillStyle=COLS[s.p];ctx.beginPath();ctx.moveTo(s.x,s.y-14);ctx.lineTo(s.x+12,s.y+10);ctx.lineTo(s.x,s.y+4);ctx.lineTo(s.x-12,s.y+10);ctx.closePath();ctx.fill();
+    if(s.shield>0){ctx.strokeStyle='#5fae7a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x,s.y,17,0,7);ctx.stroke()}});
+  g.pt.forEach(p=>{ctx.globalAlpha=clamp(p.l*2,0,1);ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,3,3)});ctx.globalAlpha=1;
+  ctx.textAlign='left';ctx.fillStyle='#a89886';ctx.font='700 13px sans-serif';ctx.fillText('WAVE '+g.wave,10,18);
+  if(g.vs&&g.pend>0){ctx.fillStyle='#ff7a5c';ctx.fillText('来襲 '+g.pend,10,34)}
+  ctx.textAlign='right';ctx.fillStyle='#a89886';ctx.fillText('SCORE '+g.score,W-10,18);
+  ctx.textAlign='center';
+  g.msg.forEach((m,i)=>{ctx.globalAlpha=clamp(m.t,0,1);ctx.fillStyle=m.col;ctx.font='700 14px sans-serif';ctx.fillText(m.text,W/2,56+i*18)});ctx.globalAlpha=1;
+  if(g.state==='intro'){ctx.fillStyle='#f0a63a';ctx.font='400 34px "Dela Gothic One",sans-serif';ctx.fillText(g.wave%3===0?'BOSS':'WAVE '+g.wave,W/2,H/2)}
+  g.ships.forEach(s=>{
+    const cx=g.c*s.p+g.c/2;ctx.fillStyle=s.alive?COLS[s.p]:'#5a4a40';ctx.font='700 12px sans-serif';ctx.fillText(g.vs?'あなた':'P'+(s.p+1),cx,H-10);
+    for(let k=0;k<3;k++){ctx.fillStyle=k<s.lives?COLS[s.p]:'#3a2d24';ctx.beginPath();ctx.arc(cx-8+k*8,H-26,2.8,0,7);ctx.fill()}
+    if(s.rapid>0||s.tri>0){ctx.fillStyle='#ffd23f';ctx.fillRect(cx-8,H-20,16*Math.min(1,Math.max(s.rapid,s.tri)/8),2)}});
+}
+function loop(now){
+  const dt=Math.min(.033,(now-lastT)/1000);lastT=now;
+  if(G.state!=='over')update(dt);
+  if(G.vs)vsTick(dt);
+  draw();raf=requestAnimationFrame(loop);
+}
+
+/* ================= menus ================= */
+function showMain(){
+  chipsEl.innerHTML='';ov.style.setProperty('--ovtop','0px');ov.style.display='flex';
+  ov.innerHTML=`<h1>ドクロ・インベーダー</h1><p>侵略者を撃ち落とす、ドクロ酒場のアクション。</p>
+  <button data-a="coop">みんなで協力(1台を囲む)</button>
+  <button class="alt" data-a="vsmenu">対戦(1人1台)</button>
+  <button class="alt" data-a="snd">${mute?'音: OFF':'音: ON'}</button>`;
+}
+function showCoop(){
+  ov.innerHTML=`<h1>みんなで協力</h1><p>スマホをテーブルの真ん中に置いて全員で囲む。自分の列を指でなぞると船が左右に動く。弾は自動発射。みんなで守り切れ。</p>
+  <p class=k>人数</p><div class=row>${[1,2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===N?'sel':''}" data-n=${n}>${n}</button>`).join('')}</div>
+  <button data-a="go">出撃</button><p class=muted>被弾したらひと口。5人以上はタブレットやPCの大きい画面が遊びやすい。</p>
+  <button class="alt" data-a="main">戻る</button>`;
+}
+function showVsMenu(){
+  chipsEl.innerHTML='';ov.style.setProperty('--ovtop','0px');ov.style.display='flex';
+  ov.innerHTML=`<h1>対戦</h1><p>敵を倒した分だけ、相手の画面に敵が降り注ぐ。最後まで生き残れ。</p>
+  <p class=k>名前</p><input id="nm" maxlength="8" placeholder="ニックネーム" value="${esc(V.name)}" autocomplete="off">
+  ${ROOM?`<button data-a="mk">部屋を作る</button><div class=row><input id="cd" maxlength="4" placeholder="部屋コード" autocomplete="off" style="flex:1 1 120px"><button data-a="jn" style="flex:1 1 90px">入る</button></div>`
+  :`<p class=muted>オンライン対戦は、このページを claude.ai で開くか、通信ライブラリが読み込める環境で使える。</p>`}
+  <p class=k>1人で練習(CPU)</p><div class=row>${[1,2,3].map(k=>`<button class="alt" data-a="cpu" data-k=${k}>CPU ${k}体</button>`).join('')}</div>
+  <button class="alt" data-a="main">戻る</button>`;
+}
+function showResult(reason){
+  const g=G,rk=[...g.ships].sort((a,b)=>b.kills-a.kills),mvp=rk[0],last=rk[rk.length-1];
+  chipsEl.innerHTML='';ov.style.display='flex';
+  ov.innerHTML=`<p class=k>GAME OVER</p><h2>${reason}</h2><p>WAVE <b class=hl>${g.wave}</b> / SCORE <b class=hl>${g.score}</b></p>
+  <div class=card>${rk.map(s=>`<div class=pl><span style="color:${COLS[s.p]}">P${s.p+1}</span><span>撃破 ${s.kills} / 被弾 ${s.hits}</span></div>`).join('')}</div>
+  ${g.n>1?`<p class=muted>被弾した回数ぶん、ひと口。撃破1位の P${mvp.p+1} は誰か1人を指名。最下位の P${last.p+1} は追加でひと口。</p>`:''}
+  <button data-a="go">もう一回</button><button class="alt" data-a="main">メニューへ</button>`;
+}
+function readName(){const e=document.getElementById('nm');if(e){V.name=e.value.trim().slice(0,8);try{localStorage.setItem('dk_name',V.name)}catch(_){}}if(!V.name)V.name='プレイヤー'+(10+Math.random()*89|0)}
+const A={
+  coop(){showCoop()}, main(){showMain()}, go(){start(N)},
+  snd(){mute=!mute;showMain()},
+  async vsmenu(){await leaveRoom();if(G){cancelAnimationFrame(raf);G=null}showVsMenu()},
+  cpu(b){readName();startCpu(+b.dataset.k)},
+  async mk(){readName();const c=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');await joinRoom(c,true)},
+  async jn(){readName();const c=(document.getElementById('cd').value||'').trim().toLowerCase();if(c.length!==4)return;await joinRoom(c,false)},
+  gostart(){const go=Date.now();rp({go});startVS(go)},
+  force(){checkGo(true);renderLobby()},
+  again(){if(V.mode==='cpu'){startCpu(V.bots.length)}else if(V.host){const go=Date.now();rp({go});startVS(go)}}
+};
+ov.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.n){N=+b.dataset.n;showCoop()}
+  else if(b.dataset.a&&A[b.dataset.a])A[b.dataset.a](b);
+});
+chipsEl.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||!G||!G.vs)return;const id=b.dataset.id;if(id===myId())return;V.target=V.target===id?null:id;renderChips()});
+
+/* ---- input ---- */
+const ptr=new Map();
+function xOf(e){const r=cv.getBoundingClientRect();return(e.clientX-r.left)*W/r.width}
+function steer(e){
+  const p=ptr.get(e.pointerId);if(p==null||!G)return;
+  const s=G.ships[p];if(!s)return;
+  s.tx=clamp(xOf(e),p*G.c+12,(p+1)*G.c-12);
+}
+cv.addEventListener('pointerdown',e=>{
+  if(!G||G.state==='over'||G.state==='out')return;
+  const p=clamp(Math.floor(xOf(e)/(W/G.n)),0,G.n-1);
+  ptr.set(e.pointerId,p);try{cv.setPointerCapture(e.pointerId)}catch(_){}steer(e);
+});
+cv.addEventListener('pointermove',steer);
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,e=>ptr.delete(e.pointerId)));
+addEventListener('keydown',e=>{keys[e.key]=true});addEventListener('keyup',e=>{keys[e.key]=false});
+
+window.__inv={start,update,draw,startCpu,vsTick,A,V,get G(){return G},steer:(p,x)=>{ptr.set(99,p);steer({pointerId:99,clientX:x})},setName:n=>{V.name=n}};
+ctx.fillStyle='#120d0a';ctx.fillRect(0,0,W,H);
+showMain();
+const p2p=()=>window.Peer?p2pRoom():null;
+try{const c=window.claude;if(c&&c.use)c.use('room').then(r=>{ROOM=r||p2p()}).catch(()=>{ROOM=p2p()});else ROOM=p2p()}catch(e){ROOM=p2p()}
+})();
+</script>
