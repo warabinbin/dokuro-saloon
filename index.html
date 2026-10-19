@@ -647,7 +647,8 @@ function buildPosterSvg(){
 }
 function posterDataUri(){return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(buildPosterSvg())}
 function savePosterImage(share){
-  const svg=buildPosterSvg(),img=new Image();
+  /* online: a non-host phone has no game state, so reuse the poster already shown on screen (built by the host) */
+  const prev=document.querySelector('.poster-preview'),uri=prev&&prev.src.indexOf('data:image/svg+xml')===0?prev.src:posterDataUri(),svg=decodeURIComponent(uri.slice(uri.indexOf(',')+1)),img=new Image();
   img.onload=()=>{
     const canvas=document.createElement('canvas');canvas.width=960;canvas.height=1280;
     const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,960,1280);
@@ -663,7 +664,7 @@ function savePosterImage(share){
     },'image/png');
   };
   img.onerror=()=>{const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dokuro-saloon-poster.svg';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)};
-  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  img.src=uri;
 }
 function end(){
   S.inGame=false;
