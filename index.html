@@ -78,7 +78,11 @@ button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .card{background:linear-gradient(145deg,rgba(48,34,24,.96),rgba(29,22,17,.98));border:1px solid #58402c;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,220,160,.045)}
 input{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0;box-sizing:border-box;-webkit-user-select:text;user-select:text}
 .pl{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)} .pl:last-child{border:0}
-.dots{display:inline-flex;gap:5px}.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--amber)}.dots i.on{background:var(--amber)}
+.gz{display:inline-flex;align-items:center;gap:8px}.hint{font-size:11px;color:var(--red);font-weight:700}
+.jug{position:relative;width:26px;height:34px;border:2px solid var(--amber);border-top-width:0;border-radius:2px 2px 8px 8px;overflow:hidden;background:rgba(255,255,255,.05)}
+.jf{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#f7d98a 0,var(--amber) 22%,#c9791f);transition:height .6s cubic-bezier(.3,1.4,.5,1);box-shadow:inset 0 3px 0 #fff8}
+.jug.hot{border-color:var(--red)}
+@media (prefers-reduced-motion:no-preference){.jug.hot{animation:wob .5s ease-in-out infinite alternate}@keyframes wob{to{transform:rotate(6deg)}}.calm .jug.hot{animation:none}}
 .tag{background:var(--red);color:#fff;border-radius:6px;font-size:12px;padding:1px 7px;margin-left:6px}
 .big{font:400 64px/1.1 var(--display);text-align:center;font-variant-numeric:tabular-nums;padding:18px 0}
 .pad{display:grid;place-items:center;height:260px;border-radius:14px;background:var(--red);font:400 34px var(--display);touch-action:manipulation}
@@ -147,8 +151,10 @@ function render(html,after){if(!after&&html===LASTHTML)return;LASTHTML=after?nul
 /* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
 function go(html,after){if(!NET.on)return render(html,after);const aud=S.pi!=null?S.pi:'all';if(S.info)return netShowInfo(aud,html,S.info);netShow(aud,html)}
 function gop(i,html,after){if(!NET.on)return render(html,after);if(S.info)return netShowInfo(i,html,S.info);netShow(i,html)}
-function drink(i,k,why){const p=S.players[i];p.lives=Math.max(0,p.lives-k);p.drinks+=k;S.log.push(`R${S.round+1} ${p.name}: ${why}`);try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}}
-const dots=p=>'<span class=dots>'+[0,1,2].map(k=>`<i class="${k<p.lives?'on':''}"></i>`).join('')+'</span>';
+function drink(i,k,why){const p=S.players[i];p.g=(p.g||0)+k;p.drinks+=k;S.log.push(`R${S.round+1} ${p.name}: ${why}`);try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}}
+const GMAX=5;
+const DRUNK=['全員で「{n}に乾杯!」。{n}は次のゲームの間、質問に必ず本当のことを答える。','{n}はお水を1杯。かわりに全員が{n}のものまねを1回ずつ。','{n}の恥ずかしい話を1つ披露。話せなければ追加でひと口。','次のゲームの間、{n}は語尾に「にゃ」をつける。','{n}が全員にお願いを1つ言える(常識の範囲で)。','全員で「{n}ガンバレ」コール。{n}は水を飲んで復活。'];
+const jug=p=>{const g=Math.min(GMAX,p.g||0),n=g/GMAX;return `<span class="jug${g>=GMAX-1?' hot':''}" title="酔いゲージ ${g}/${GMAX}"><span class=jf style="height:${Math.round(n*100)}%"></span></span>${g>=GMAX-1?'<span class=hint>あと1杯で泥酔!</span>':''}`}
 const nextBtn=(t='次へ')=>`<button data-act=cb>${t}</button>`;
 function pass(i,label,next){S.cb=next;if(NET.on){S.pi=i;try{next()}finally{S.pi=null}return}go(`<p class=k>${label}</p><h2>${nm(i)}にスマホを渡して</h2><p class=muted>他の人は画面を見ない</p><button data-act=cb>私が${nm(i)}です</button>`)}
 
@@ -200,9 +206,10 @@ function hub(){
   S.inGame=false;S.info=null;save();
   if(S.round>0&&S.round%5===0&&S.evShown!==S.round){S.evShown=S.round;S.ev=pick(EVENTS)}
   const ev=S.evShown===S.round&&S.round>0?`<div class=ev><b>ランダムイベント</b><br>${S.ev}</div>`:'';
+  let dr='';S.players.forEach(p=>{if((p.g||0)>=GMAX){p.drunk=(p.drunk||0)+1;p.g=2;S.log.push(`R${S.round+1} ${p.name}: 泥酔!`);dr+=`<div class=ev><b>🥴 ${esc(p.name)}が泥酔!(酔いゲージ満タン)</b><br>${pick(DRUNK).replace(/\{n\}/g,esc(p.name))}</div>`}});
   const note=S.note?`<div class=ev><b>インベーダーの結果</b><br>${esc(S.note)}</div>`:'';S.note='';
-  go(`<p class=k>ラウンド ${S.round+1}</p>${ev}${note}
-  <div class=card>${S.players.map((p,i)=>`<div class=pl><span>${esc(p.name)}${p.lives?'':'<span class=tag>罰ゲーム役</span>'}</span>${dots(p)}</div>${p.cards.length?`<div class=row>${p.cards.map((c,k)=>`<button class="sm grn" data-act=card data-i=${i} data-k=${k}>${c}</button>`).join('')}</div>`:''}`).join('')}</div>
+  go(`<p class=k>ラウンド ${S.round+1}</p>${dr}${ev}${note}
+  <div class=card>${S.players.map((p,i)=>`<div class=pl><span>${esc(p.name)}${p.drunk?`<span class=tag>泥酔×${p.drunk}</span>`:''}</span><span class=gz>${jug(p)}</span></div>${p.cards.length?`<div class=row>${p.cards.map((c,k)=>`<button class="sm grn" data-act=card data-i=${i} data-k=${k}>${c}</button>`).join('')}</div>`:''}`).join('')}</div>
   ${menu()}
   <button class="alt" data-act=end>今夜はここまで(結果)</button>`);
 }
@@ -906,7 +913,7 @@ async function netLeave(){
 const A={
  setn(e){readNames();S.n=+e.dataset.i;setupLocal()},local(){setupLocal()},
  start(){readNames();try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
-  S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
+  S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),g:0,drunk:0,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
  g1(){liar()},g20(){openInv()},
  netmenu(){netMenu()},netback(){setup()},netleave(){netLeave()},
  async netmk(){
@@ -921,7 +928,7 @@ const A={
  },
  async netjn(){const nm_=netName(),c=(($('#ncd')||{}).value||'').trim().toLowerCase();if(c.length!==4)return;await netEnter(c,false,nm_)},
  netstart(){const now=Date.now(),ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar&&(p.sameTab||now-p.updatedAt<10000)).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t).slice(0,8);if(ps.length<2)return;
-  NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
+  NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),g:0,drunk:0,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
   NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';NET.room.presence({playing:true});try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
  netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);NET.room.presence({playing:false});renderNetLobby()},
  resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},g12(){sync()},
@@ -953,10 +960,10 @@ const A={
   else{drink(S.acc,1,'ミッション告発に失敗');go(`<h2 class=lose>ハズレ</h2><p>${nm(S.acc)}がひと口</p>${nextBtn()}`)}
   S.cb=misMenu},
  card(e){const p=S.players[+e.dataset.i],k=+e.dataset.k,c=p.cards[k];S.use={i:+e.dataset.i,k};
-  if(c==='免除'){p.cards.splice(k,1);p.lives=Math.min(3,p.lives+1);p.drinks=Math.max(0,p.drinks-1);S.log.push(p.name+': 免除カード');return hub()}
+  if(c==='免除'){p.cards.splice(k,1);p.g=Math.max(0,(p.g||0)-1);p.drinks=Math.max(0,p.drinks-1);S.log.push(p.name+': 免除カード');return hub()}
   gop(S.use.i,`<h2>${c}: 誰に?</h2><div class=row>${S.players.map((_,i)=>i).filter(i=>i!==S.use.i).map(i=>`<button class=red data-act=cardt data-t=${i}>${nm(i)}</button>`).join('')}</div><button class=alt data-act=back>やめる</button>`)},
  cardt(e){const p=S.players[S.use.i],c=p.cards.splice(S.use.k,1)[0],t=+e.dataset.t;
-  if(c==='身代わり'){p.lives=Math.min(3,p.lives+1);p.drinks=Math.max(0,p.drinks-1)}
+  if(c==='身代わり'){p.g=Math.max(0,(p.g||0)-1);p.drinks=Math.max(0,p.drinks-1)}
   drink(t,1,p.name+'の'+c+'カード');hub()}
 };
 function abortGame(){
