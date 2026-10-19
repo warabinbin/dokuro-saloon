@@ -107,10 +107,12 @@ canvas{max-width:400px}
 .invbar{padding:calc(6px + env(safe-area-inset-top,0px)) 10px 6px;display:flex;justify-content:flex-end;background:#0e0b09}
 .bmst{font-size:13px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 10px;align-self:center;max-width:360px}
 .bmpad{display:flex;justify-content:space-between;align-items:center;gap:12px;align-self:center;width:100%;max-width:360px;touch-action:none;user-select:none}
-.stick{position:relative;width:150px;height:150px;flex:none;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.05),rgba(255,255,255,.02) 60%,transparent 62%),var(--panel);border:2px solid var(--line);touch-action:none;user-select:none;-webkit-user-select:none}
-.stick i{position:absolute;font-style:normal;font-size:13px;color:var(--mute);opacity:.7}
-.stick .a1{left:50%;top:6px;transform:translateX(-50%)}.stick .a3{left:50%;bottom:6px;transform:translateX(-50%)}.stick .a2{right:8px;top:50%;transform:translateY(-50%)}.stick .a4{left:8px;top:50%;transform:translateY(-50%)}
-.knob{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd78a,var(--amber) 55%,#b8741c);box-shadow:0 4px 10px rgba(0,0,0,.45);transition:transform .08s ease-out;pointer-events:none}
+.stick{position:relative;flex:1 1 auto;max-width:240px;height:170px;border-radius:22px;border:1px dashed var(--line);background:rgba(255,255,255,.025);touch-action:none;user-select:none;-webkit-user-select:none}
+.sbase{position:absolute;left:50%;top:50%;width:128px;height:128px;margin:-64px 0 0 -64px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.05),rgba(255,255,255,.02) 60%,transparent 62%),var(--panel);border:2px solid var(--line);opacity:.6;pointer-events:none}
+.stick.on .sbase{opacity:1;border-color:var(--amber)}
+.sbase i{position:absolute;font-style:normal;font-size:12px;color:var(--mute);opacity:.7}
+.sbase .a1{left:50%;top:5px;transform:translateX(-50%)}.sbase .a3{left:50%;bottom:5px;transform:translateX(-50%)}.sbase .a2{right:7px;top:50%;transform:translateY(-50%)}.sbase .a4{left:7px;top:50%;transform:translateY(-50%)}
+.knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd78a,var(--amber) 55%,#b8741c);box-shadow:0 4px 10px rgba(0,0,0,.45);transition:transform .08s ease-out;pointer-events:none}
 .stick.on .knob{transition:none}
 .bmleg{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;margin:8px 0}.bmleg i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;color:#17120f;font-style:normal;font-weight:700;margin-right:4px}
 .bmme{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--mute);min-height:22px}.bmme span{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1px 8px}.bmme .on{color:#4aa3d8;border-color:#4aa3d8}.bmme .bad{color:#b58ae0;border-color:#b58ae0}
@@ -729,6 +731,7 @@ function bmKill(s,p,force){
 function bmInput(s,i,m){
   const p=s&&s.p[i];if(!p||!p.a||s.ph==='over')return;
   p.dx=Math.sign(+m.dx||0);p.dy=p.dx?0:Math.sign(+m.dy||0);p.inT=s.tick;
+  p.sx=p.dy?Math.sign(+m.ax||0):0;p.sy=p.dx?Math.sign(+m.ay||0):0;   // diagonal stick: the other axis is the fallback when the main one is blocked
   if(m.bomb&&s.ph==='play'&&p.nb<p.mb&&!s.b.some(b=>b.x===p.x&&b.y===p.y)){
     s.b.push({x:p.x,y:p.y,t:24,pw:p.pw,o:i,walk:s.p.filter(q=>q.a&&q.x===p.x&&q.y===p.y).map(q=>q.i)});p.nb++;
   }
@@ -745,16 +748,19 @@ function bmTick(s){
   s.p.forEach(p=>{
     if(!p.a)return;if(p.cd>0)p.cd--;if(p.inv>0)p.inv--;if(p.rv>0)p.rv--;
     if(s.exp&&(p.dx||p.dy)&&s.tick-p.inT>8)p.dx=p.dy=0;   // phones re-send a held direction every 250ms; silence means the release got lost
-    const mx=p.rv>0?-p.dx:p.dx,my=p.rv>0?-p.dy:p.dy;
-    if(p.cd<=0&&(mx||my)){
-      const nx=p.x+mx,ny=p.y+my,kb=p.kick&&s.b.find(b=>b.x===nx&&b.y===ny&&!b.walk.includes(p.i));
-      if(kb){kb.vx=mx;kb.vy=my;p.cd=p.sp}
-      else if(bmFree(s,nx,ny,p)){
-        p.x=nx;p.y=ny;p.cd=p.sp;
-        s.b.forEach(b=>{if(b.walk.includes(p.i)&&!(b.x===p.x&&b.y===p.y))b.walk=b.walk.filter(k=>k!==p.i)});
-        const c=bmAt(s,nx,ny);
-        if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(1,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50;
-        if(ITEMS.includes(c))s.g[ny*s.w+nx]='.';
+    if(p.cd<=0&&(p.dx||p.dy)){
+      const ord=[[p.dx,p.dy]];if(p.sx||p.sy)ord.push([p.sx,p.sy]);
+      for(const[ux,uy]of ord){
+        const mx=p.rv>0?-ux:ux,my=p.rv>0?-uy:uy,nx=p.x+mx,ny=p.y+my,kb=p.kick&&s.b.find(b=>b.x===nx&&b.y===ny&&!b.walk.includes(p.i));
+        if(kb){kb.vx=mx;kb.vy=my;p.cd=p.sp;break}
+        if(bmFree(s,nx,ny,p)){
+          p.x=nx;p.y=ny;p.cd=p.sp;
+          s.b.forEach(b=>{if(b.walk.includes(p.i)&&!(b.x===p.x&&b.y===p.y))b.walk=b.walk.filter(k=>k!==p.i)});
+          const c=bmAt(s,nx,ny);
+          if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(1,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50;
+          if(ITEMS.includes(c))s.g[ny*s.w+nx]='.';
+          break;
+        }
       }
     }
   });
@@ -841,25 +847,27 @@ WID.bomber=(p,done)=>{
   const me=p.i,play=me<p.np,T=40,cols=Math.min(p.w,VCOLS),rows=Math.min(p.h,VROWS),cam={x:0,y:0,on:0},tok=BM.tok=Math.random();BM.vis=[];BM.pt=[];BM.feed=[];BM.shake=0;BM.seen=null;if(!NET.host)BM.cur=null;
   if(!NET.host&&BM.sroom!==NET.room){BM.sroom=NET.room;NET.room.sub('bm/st',BM.recv)}
   render(`<div id=bmst class=bmst></div><canvas id=bmc width=${cols*T} height=${rows*T}></canvas><div id=bmme class=bmme></div>
-  ${play?`<div class=bmpad><div class=stick id=stk aria-label="移動スティック"><i class=a1>▲</i><i class=a2>▶</i><i class=a3>▼</i><i class=a4>◀</i><b class=knob></b></div><button id=bb class=bombbtn aria-label="爆弾">💣</button></div>`:'<p class=muted>観戦中</p>'}`,()=>{
-    const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,predT=0;
-    const send=bomb=>{const m={dx,dy,bomb:bomb?1:0,n:++seq};if(NET.host){bmInput(BM.sim,0,m);if(bomb)bmPub()}else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
-    const dir=(x,y)=>{bmSnd('');dx=x;dy=y;send(0)};
+  ${play?`<div class=bmpad><div class=stick id=stk aria-label="移動スティック"><div class=sbase><i class=a1>▲</i><i class=a2>▶</i><i class=a3>▼</i><i class=a4>◀</i><b class=knob></b></div></div><button id=bb class=bombbtn aria-label="爆弾">💣</button></div>`:'<p class=muted>観戦中</p>'}`,()=>{
+    const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,sx=0,sy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,predT=0;
+    const send=bomb=>{const m={dx,dy,ax:sx,ay:sy,bomb:bomb?1:0,n:++seq};if(NET.host){bmInput(BM.sim,0,m);if(bomb)bmPub()}else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
+    const dir=(x,y,a,b)=>{bmSnd('');dx=x;dy=y;sx=a||0;sy=b||0;send(0)};
     if(play){
-      const pad=$('#stk'),knob=pad.querySelector('.knob'),R=48;
+      const pad=$('#stk'),base=pad.querySelector('.sbase'),knob=pad.querySelector('.knob'),R=50,H=64;let ox=0,oy=0;   // ox/oy: where the stick is centred (client px)
+      const show=()=>{const r=pad.getBoundingClientRect();base.style.left=Math.max(H,Math.min(r.width-H,ox-r.left))+'px';base.style.top=Math.max(H,Math.min(r.height-H,oy-r.top))+'px'};
       const aim=e=>{
-        const r=pad.getBoundingClientRect(),ox=e.clientX-(r.left+r.width/2),oy=e.clientY-(r.top+r.height/2),d=Math.hypot(ox,oy),k=d>R?R/d:1;
-        knob.style.transform=`translate(${ox*k}px,${oy*k}px)`;
-        let nx=0,ny=0;
-        if(d>(dx||dy?22:30)){   // dead zone (wider to start than to keep moving); four-way from the stick angle; the current axis is kept until the other one clearly wins (no flicker at diagonals)
-          const ax=Math.abs(ox),ay=Math.abs(oy),horiz=dx!==0?ax>=ay*.6:dy!==0?ax>ay*1.7:ax>=ay;
-          if(horiz)nx=Math.sign(ox);else ny=Math.sign(oy);
+        let vx=e.clientX-ox,vy=e.clientY-oy;const d=Math.hypot(vx,vy);
+        if(d>R){ox+=vx*(d-R)/d;oy+=vy*(d-R)/d;vx=e.clientX-ox;vy=e.clientY-oy;show()}   // dragged past the edge: the base follows the finger, so thumbs never drift out of range
+        knob.style.transform=`translate(${vx}px,${vy}px)`;
+        const ax=Math.abs(vx),ay=Math.abs(vy);let nx=0,ny=0,qx=0,qy=0;
+        if(Math.max(ax,ay)>(dx||dy?11:17)){   // four-way main axis (sticky: it only flips when the other axis clearly wins) plus a fallback axis for diagonals
+          const horiz=dx!==0?ax>=ay*.7:dy!==0?ax>ay*1.4:ax>=ay;
+          if(horiz){nx=Math.sign(vx);if(ay>13&&ay>=ax*.45)qy=Math.sign(vy)}else{ny=Math.sign(vy);if(ax>13&&ax>=ay*.45)qx=Math.sign(vx)}
         }
-        if(nx!==dx||ny!==dy)dir(nx,ny);
+        if(nx!==dx||ny!==dy||qx!==sx||qy!==sy)dir(nx,ny,qx,qy);
       };
-      pad.onpointerdown=e=>{e.preventDefault();try{pad.setPointerCapture(e.pointerId)}catch(_){}pad.classList.add('on');aim(e)};
+      pad.onpointerdown=e=>{e.preventDefault();try{pad.setPointerCapture(e.pointerId)}catch(_){}ox=e.clientX;oy=e.clientY;show();pad.classList.add('on');aim(e)};
       pad.onpointermove=e=>{if(pad.classList.contains('on'))aim(e)};
-      const rel=()=>{pad.classList.remove('on');knob.style.transform='';if(dx||dy){dir(0,0);setTimeout(()=>{if(!dx&&!dy)send(0)},90);setTimeout(()=>{if(!dx&&!dy)send(0)},260)}};   // stop is sent three times so one lost message can't leave the skull running
+      const rel=()=>{pad.classList.remove('on');base.style.left=base.style.top='';knob.style.transform='';if(dx||dy||sx||sy){dir(0,0);setTimeout(()=>{if(!dx&&!dy)send(0)},90);setTimeout(()=>{if(!dx&&!dy)send(0)},260)}};   // stop is sent three times so one lost message can't leave the skull running
       pad.onpointerup=rel;pad.onpointercancel=rel;pad.onlostpointercapture=rel;window.onblur=rel;
       $('#bb').onpointerdown=e=>{e.preventDefault();bmSnd('');send(1);placeGhost()};
       const K={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};
@@ -926,8 +934,9 @@ WID.bomber=(p,done)=>{
     function placeGhost(){const st=BM.cur;if(!st||st.ph!=='play'||!pred)return;const m=st.p[me];if(!m||!m[2])return;if(st.b.some(b=>b[0]===pred.x&&b[1]===pred.y))return;ghost={x:pred.x,y:pred.y,until:performance.now()+450}}
     const predStep=(st,dt,now,hx,hy)=>{
       const m=st.p[me];pred.cd-=dt*1000;
-      const mx=m[4]?-dx:dx,my=m[4]?-dy:dy;
-      if(st.ph==='play'&&pred.cd<=0&&(mx||my)){const nx=pred.x+mx,ny=pred.y+my;if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=(4-m[7])*BTICK}}
+      if(st.ph==='play'&&pred.cd<=0&&(dx||dy)){
+        for(const[ux,uy]of(sx||sy)?[[dx,dy],[sx,sy]]:[[dx,dy]]){const nx=pred.x+(m[4]?-ux:ux),ny=pred.y+(m[4]?-uy:uy);if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=(4-m[7])*BTICK;break}}
+      }
       if(!dx&&!dy&&(pred.x!==hx||pred.y!==hy)&&now-predT>350){pred.x=hx;pred.y=hy}   // idle and still disagreeing: trust the host
     };
     const events=(st,pv)=>{
