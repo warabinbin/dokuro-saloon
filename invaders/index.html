@@ -29,7 +29,7 @@
 /* layout: one portrait arena sized to the screen; coop splits it into columns, versus gives each device the whole field plus a rival chip bar and a status strip */
 :root{--ink:#0e0b09;--panel:#1c1511;--line:#3a2d24;--fg:#f3e9dc;--mute:#a89886;--amber:#f0a63a;--red:#e0553a;--green:#5fae7a;--blue:#4aa3d8;
 --display:'Dela Gothic One','Hiragino Sans','Yu Gothic',sans-serif;--body:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;color-scheme:dark}
-html,body{height:100%;overscroll-behavior:none}
+html,body{height:100%;overscroll-behavior:none}html{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--ink);background-image:linear-gradient(180deg,rgba(14,11,9,.62),rgba(14,11,9,.92)),url("../tavern-bg.svg");background-size:cover;background-position:center;background-attachment:fixed;color:var(--fg);font:500 16px/1.5 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:flex;justify-content:center;box-sizing:border-box}
 .stage{position:relative;width:100%;max-width:480px;touch-action:none}
 canvas{display:block;width:100%;height:auto;border-radius:14px;background:#120d0a;border:1px solid #5a402b;box-shadow:0 12px 30px rgba(0,0,0,.28);touch-action:none}
@@ -69,6 +69,8 @@ b.hl{color:var(--amber)} ul.how{margin:0;padding-left:1.2em;display:flex;flex-di
 #strip{margin-top:6px;font-size:12px;color:var(--mute);display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;font-variant-numeric:tabular-nums}
 #strip:empty{display:none}
 @media (prefers-reduced-motion:reduce){button{transition:none}}
+/* a portrait shooter can't be played on a short landscape screen: ask for the phone to be turned instead of cutting the field */
+@media (orientation:landscape) and (max-height:520px){.stage{display:none}body::before{content:"スマホを縦向きにして遊んでね";display:flex;align-items:center;justify-content:center;min-height:80vh;text-align:center;font:700 20px var(--body);color:var(--amber)}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <div class="stage" id="stage"><div id="chips"></div><canvas id="cv"></canvas><div id="ov" class="ov"></div><div id="strip"></div></div>
@@ -206,7 +208,7 @@ function mkBg(){
   g=x.createLinearGradient(0,H-110,0,H);g.addColorStop(0,'rgba(240,166,58,0)');g.addColorStop(1,'rgba(240,166,58,.10)');x.fillStyle=g;x.fillRect(0,H-110,W,110);
   return c;
 }
-function avail(vs){const iw=window.innerWidth||412,ih=window.innerHeight||860,aw=Math.min(iw-32,480);return{aw,ah:Math.max(420,ih-(vs?150:34))}}
+function avail(vs){const iw=window.innerWidth||412,ih=window.innerHeight||860,aw=Math.min(iw-32,480);return{aw,ah:Math.max(300,ih-(vs?150:34))}}
 function sizeStage(){const a=avail(fitVs);stage.style.maxWidth=Math.floor(Math.min(a.aw,a.ah*W/H))+'px'}
 function fit(vs){
   fitVs=vs;const a=avail(vs),h=vs?600:clamp(Math.round(W*a.ah/a.aw),520,700);
