@@ -34,7 +34,9 @@ body{margin:0;background:var(--ink);color:var(--fg);font:500 16px/1.5 var(--body
 .stage{position:relative;width:100%;max-width:480px;touch-action:none}
 canvas{display:block;width:100%;height:auto;border-radius:14px;background:#120d0a;border:1px solid var(--line);touch-action:none}
 .ov{position:absolute;inset:0;top:var(--ovtop,0);display:flex;flex-direction:column;gap:12px;justify-content:center;padding:18px;background:rgba(14,11,9,.84);border-radius:14px;overflow:auto;box-sizing:border-box;touch-action:pan-y}
-h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.3;text-wrap:balance}
+h1{font-family:var(--display);font-weight:400}
+h2{font-family:var(--body);font-weight:700}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
 h1{font-size:30px;color:var(--amber);text-shadow:0 0 18px rgba(240,166,58,.35)} h2{font-size:24px}
 p{margin:0} .muted{color:var(--mute);font-size:14px} .k{color:var(--amber);font-size:13px;letter-spacing:.12em}
 button{font:700 17px var(--body);background:var(--amber);color:#1c1308;border:0;border-radius:10px;min-height:52px;padding:8px 16px;cursor:pointer;transition:transform .08s}
@@ -342,7 +344,7 @@ function vsEnd(){
   <button class="alt" data-a="vsmenu">対戦メニューへ</button>`;
 }
 function startVS(run){
-  V.run=run;V.lastGo=run;V.phase='play';V.seen={};V.seenRun={};V.ended=false;V.maxP=1;V.lastEnd=performance.now();
+  V.lobbyHtml='';V.run=run;V.lastGo=run;V.phase='play';V.seen={};V.seenRun={};V.ended=false;V.maxP=1;V.lastEnd=performance.now();
   start(1,true);G.out={};
   if(V.mode==='room'&&V.room)rp({vs:1,name:V.name,run,sh:VSHIP,out:{},alive:true,lives:3,diedAt:null,score:0,en:0,wave:1});
   vsPub(true);renderChips();
@@ -354,7 +356,7 @@ function startCpu(k){
   startVS(run);
 }
 async function leaveRoom(){
-  try{V.unsub&&V.unsub()}catch(e){}V.unsub=null;clearInterval(V.poll);V.poll=0;V.err='';
+  V.lobbyHtml='';try{V.unsub&&V.unsub()}catch(e){}V.unsub=null;clearInterval(V.poll);V.poll=0;V.err='';
   try{V.room&&await V.room.leave()}catch(e){}
   V.room=null;V.mode=null;V.phase='menu';
 }
@@ -378,11 +380,12 @@ function checkGo(manual){
 function renderLobby(){
   const ps=V.room.peers().filter(p=>p.presence&&p.presence.vs);
   ov.style.setProperty('--ovtop','0px');ov.style.display='flex';
-  ov.innerHTML=`<p class=k>部屋コード</p><div class=code>${esc(V.code.toUpperCase())}</div><p class=muted>友だちに、このコードを伝えて入ってもらう。</p>
+  const lh=`<p class=k>部屋コード</p><div class=code>${esc(V.code.toUpperCase())}</div><p class=muted>友だちに、このコードを伝えて入ってもらう。</p>
   <div class=card>${ps.map(p=>`<div class=pl><span>${esc(p.presence.name||'?')}${p.presence.host?'(ホスト)':''}</span><span>${p.sameTab?'あなた':''}</span></div>`).join('')||'<p class=muted>接続中…</p>'}</div>
   ${V.host?`<button data-a="gostart" ${ps.length<2?'disabled':''}>${ps.length<2?'2人以上で開始できる':'対戦開始'}</button>`:'<p class=muted>ホストが開始するまで待機…</p><button class="alt" data-a="force">開始したのに始まらない時はここ</button>'}
   <p class=muted>接続:${V.room.connected()?'OK':'NG'} / ${ps.length}人 / ホスト${ps.some(p=>p.presence.host)?'あり':'なし'}${ps.some(p=>p.presence.go)?' / 開始信号あり':''}${V.err?' / エラー:'+esc(V.err):''}</p>
   <button class="alt" data-a="vsmenu">部屋を出る</button>`;
+  if(V.lobbyHtml===lh)return;V.lobbyHtml=lh;ov.innerHTML=lh;
 }
 
 /* ================= game core ================= */

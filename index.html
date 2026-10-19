@@ -32,8 +32,10 @@
 html,body{height:100%}
 body{background:var(--ink);color:var(--fg);font:500 16px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;-webkit-user-select:none;user-select:none}
 #app{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:16px;min-height:100%}
-h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;line-height:1.3}
-h1{font-size:34px;color:var(--amber)} h2{font-size:24px} h3{font-size:18px}
+h1{font-family:var(--display);font-weight:400}
+h2,h3{font-family:var(--body);font-weight:700}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.3}
+h1{font-size:34px;color:var(--amber)} h2{font-size:25px} h3{font-size:18px}
 p{margin:0} .muted{color:var(--mute);font-size:14px} .k{color:var(--amber);font-size:13px;letter-spacing:.12em}
 button,input{font:inherit;color:inherit}
 button{background:var(--amber);color:#1c1308;border:0;border-radius:10px;min-height:54px;padding:10px 16px;font-weight:700;font-size:17px;cursor:pointer}
@@ -63,6 +65,7 @@ button.sm{min-height:36px;font-size:14px;padding:4px 10px;flex:0 0 auto}
 .sub{display:block;font-weight:500;font-size:12px;opacity:.8}
 button[disabled]{opacity:.4;cursor:not-allowed}
 ol{margin:0;padding-left:1.4em}
+.row.nums{gap:6px}.nums>button{flex:1 1 34px;min-width:0;padding:10px 2px}
 #gbar{max-width:440px;margin:0 auto 8px;display:flex}#gbar[hidden]{display:none}
 #modal{position:fixed;inset:0;background:rgba(10,8,6,.8);display:grid;place-items:center;padding:24px;z-index:20}#modal[hidden]{display:none}#modal .card{max-width:360px;width:100%}
 @media (prefers-reduced-motion:no-preference){#app>*{animation:in .18s ease-out}@keyframes in{from{opacity:.4;transform:translateY(6px)}}}
@@ -78,7 +81,9 @@ const TOPICS=['最近いちばん恥ずかしかったこと','人生で一番�
 const EVENTS=['全員、利き手と反対の手でスマホを持つこと','最年少が1人指名して、ひと口飲ませる','全員で乾杯してから次へ','次の1ラウンド、語尾に「ござる」をつける','スマホを持つ人は立って操作する','いま一番酔ってそうな人が1人を指名して乾杯'];
 const S={players:[],names:['','','',''],n:4,level:1,round:0,log:[],g:null,cb:null,raf:0,evShown:-1,ev:'',narr:-1};
 const N=()=>S.players.length,nm=i=>esc(S.players[i].name);
-function render(html,after){cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
+/* unchanged screens are not rebuilt: the lobby refreshes often and a rebuild would flash and could swallow a tap */
+let LASTHTML=null;
+function render(html,after){if(!after&&html===LASTHTML)return;LASTHTML=after?null:html;cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
 /* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
 function go(html,after){if(!NET.on)return render(html,after);netShow(S.pi!=null?S.pi:'all',html)}
 function gop(i,html,after){if(!NET.on)return render(html,after);netShow(i,html)}
@@ -90,11 +95,13 @@ function pass(i,label,next){S.cb=next;if(NET.on){S.pi=i;try{next()}finally{S.pi=
 /* ---- setup ---- */
 function setup(){
   S.inGame=false;
-  const sv=savedInfo();
+  const sv=savedInfo(),online=window.mqtt&&window.top===window;
   const inputs=Array.from({length:S.n},(_,i)=>`<input id="n${i}" maxlength=8 placeholder="プレイヤー${i+1}" value="${esc(S.names[i]||'')}">`).join('');
-  go(`<h1>ドクロ酒場</h1>${sv?`<button data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}<p class=muted>1台のスマホを回して遊ぶ試作版。飲めない人は水でOK。ライフが減る=ひと口。</p>
-  <div class=card><h3>人数</h3><div class=row>${[2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===S.n?'sel':''}" data-act=setn data-i=${n}>${n}</button>`).join('')}</div>${inputs}</div>
-  <p class=muted>嘘つきグラス: 5人以上は毎回、狂人が1人。4人は5回に1回ほど狂人あり。</p><button data-act=start>乾杯!(1台を回す)</button>${window.mqtt&&window.top===window?'<button class=alt data-act=netmenu>オンライン(各自のスマホで遊ぶ)</button><p class=muted>オンライン: 幹事のスマホがゲームを進行する。全員が自分のスマホで操作。</p>':''}`);
+  go(`<h1>ドクロ酒場</h1><p class=muted>1台を回しても、各自のスマホでも遊べる飲み会ゲーム集。飲めない人は水でOK。ライフが減る=ひと口。</p>
+  ${sv?`<button data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}
+  ${online?`<div class=card><h3>各自のスマホで遊ぶ</h3><p class=muted>幹事が部屋を作り、全員が自分のスマホで操作する。</p><button data-act=netmenu>オンラインで始める</button></div>`:''}
+  <div class=card><h3>1台を回して遊ぶ</h3><p class=muted>人数</p><div class="row nums">${[2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===S.n?'sel':''}" data-act=setn data-i=${n}>${n}</button>`).join('')}</div>${inputs}
+  <p class=muted>嘘つきグラス: 5人以上は毎回、狂人が1人。4人は5回に1回ほど狂人あり。</p><button data-act=start>乾杯!</button></div>`);
 }
 /* ---- save / resume + link to the invaders page (same origin, so localStorage is shared) ---- */
 const SAVE_KEYS=['players','names','n','round','log','evShown','ev','narr','dans'];
@@ -252,8 +259,9 @@ function drawLoop(k){
   pass(d,'お絵描き '+(k+1)+'/'+g.drawers.length,()=>askW(d,'draw',{topic:k===0?g.topic:null,prev:k>0?g.imgs[k-1]:null,secs:20},res=>{g.imgs[k]=res.img;drawLoop(k+1)},`<p class=k>お絵描きリレー</p><h2>${nm(d)}が描いている</h2><p class=muted>回答者は見ないこと。</p>`));
 }
 function guess(){
-  const g=S.g,img=g.imgs[g.imgs.length-1],pic=`<img src="${img}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`;
-  pass(g.a,'回答者',()=>askW(g.a,'text',{q:'この絵はなに?',img,max:20,ph:'答えを入力'},res=>judgeGuess(res.text),`<h2>この絵はなに?</h2>${pic}<p class=muted>${nm(g.a)}が回答中…</p>`));
+  const g=S.g;g.a_name=S.players[g.a].name;
+  const img=g.imgs[g.imgs.length-1],pic=`<img src="${img}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`;
+  pass(g.a,'回答者',()=>askW(g.a,'text',{label:'回答者: '+g.a_name,q:'この絵はなに?',img,max:20,ph:'答えを入力'},res=>judgeGuess(res.text),`<h2>この絵はなに?</h2>${pic}<p class=muted>${nm(g.a)}が回答中…</p>`));
 }
 /* auto-judge: spelling variants (kana / katakana / kanji) are folded together; a human can still overrule a synonym */
 function judgeGuess(t){
@@ -311,9 +319,9 @@ function miniResult(){
 /* widgets: small self-contained screens that run on whichever phone shows them and hand back one result */
 const wfin=(done,res)=>{const r=$('#res');if(r)r.innerHTML=`<p class=big style="font-size:30px;padding:8px 0">${res.label}</p><button id=wnext>次へ</button>`;const b=$('#wnext');if(b)b.onclick=()=>done(res)};
 const WID={
- text:(p,done)=>render(`${p.img?`<img src="${p.img}" alt="絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`:''}<h2>${esc(p.q)}</h2><input id=tx maxlength=${p.max||20} placeholder="${esc(p.ph||'ここに入力')}" autocomplete=off><button id=sub>決定</button>`,()=>{
+  text:(p,done)=>render(`${p.label?`<p class=k>${esc(p.label)}</p>`:''}${p.img?`<img src="${p.img}" alt="絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`:''}<h2>${esc(p.q)}</h2><input id=tx maxlength=${p.max||20} placeholder="${esc(p.ph||'ここに入力')}" autocomplete=off><button id=sub>決定</button>`,()=>{
   const fin=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}done({text:v})};
-  $('#sub').onclick=fin;$('#tx').onkeydown=e=>{if(e.key==='Enter')fin()};
+  $('#sub').onclick=fin;$('#tx').onkeydown=e=>{if(e.key==='Enter')fin()};setTimeout(()=>{const e=$('#tx');e&&e.focus()},60);
  }),
  draw:(p,done)=>{
   render((p.topic?`<p class=k>お題(あなただけが知る)</p><h2>${esc(p.topic)}</h2>`:`<p class=k>前の人の絵(これを描く)</p><img src="${p.prev}" alt="前の人の絵" style="width:55%;max-width:200px;border-radius:10px;align-self:center">`)
@@ -413,7 +421,7 @@ function diceTurn(){
   const g=S.g,T=N()*g.D;if(!g.sel)g.sel=minBid(g.bid);g.sel.q=Math.min(g.sel.q,T);const ok=bidOk();
   gop(g.turn,`<p class=k>${nm(g.turn)}の番</p><div class=card><p>あなたのダイス</p><div class=big style="font-size:48px;padding:6px 0">${g.dice[g.turn].join(' ')}</div></div>
   <p>${g.bid?`現在の宣言: <b class=win>${nm(g.bid.by)}「${g.bid.f}が${g.bid.q}個」</b>(全${T}個中)`:`まだ宣言なし(全${T}個)`}</p>
-  <div class=card><p>あなたの宣言</p><div class=row style="align-items:center;flex-wrap:nowrap"><button class=alt data-act=dq data-d=-1>−</button><b style="text-align:center;font:400 26px var(--display)">${g.sel.f}が${g.sel.q}個</b><button class=alt data-act=dq data-d=1>＋</button></div>
+  <div class=card><p>あなたの宣言</p><div class=row style="align-items:center;flex-wrap:nowrap"><button class=alt data-act=dq data-d=-1 style="flex:0 0 64px">−</button><b style="flex:1 1 auto;min-width:0;white-space:nowrap;text-align:center;font:700 24px var(--body)">${g.sel.f}が${g.sel.q}個</b><button class=alt data-act=dq data-d=1 style="flex:0 0 64px">＋</button></div>
   <div class=row style="flex-wrap:nowrap">${[1,2,3,4,5,6].map(f=>`<button class="alt ${f===g.sel.f?'sel':''}" data-act=df data-f=${f}>${f}</button>`).join('')}</div>
   <button data-act=dbid ${ok?'':'disabled'}>${ok?'宣言する':'前の宣言より上げてください'}</button></div>
   ${g.bid?'<button class=red data-act=ddoubt>ダウト!</button>':''}`);
@@ -529,13 +537,13 @@ function sync(){
 }
 function syncStart(){
   const g=S.g;
-  if(NET.on){const each={};S.players.forEach((_,i)=>each[i]={w:{name:'text',params:{q:g.q,max:10,ph:'1語で'}}});
+  if(NET.on){const each={};S.players.forEach((_,i)=>each[i]={w:{name:'text',params:{label:'シンクロ連想',q:g.q,max:10,ph:'1語で'}}});
     netShowEach(each,{wait:`<p class=k>シンクロ連想</p><h2>${esc(g.q)}</h2><p class=muted>各自のスマホで入力中。全員が終わるまで待つ。</p>`,cb:res=>{g.ans=S.players.map((_,i)=>res[i].text);syncReveal()}})}
   else syncLoop(0);
 }
 function syncLoop(i){
   const g=S.g;if(i>=N())return syncReveal();
-  pass(i,'シンクロ連想',()=>askW(i,'text',{q:g.q,max:10,ph:'1語で'},res=>{g.ans[i]=res.text;syncLoop(i+1)}));
+  pass(i,'シンクロ連想',()=>askW(i,'text',{label:'シンクロ連想・'+S.players[i].name,q:g.q,max:10,ph:'1語で'},res=>{g.ans[i]=res.text;syncLoop(i+1)}));
 }
 function syncReveal(){
   const g=S.g,n=N(),keys=g.ans.map(normAns),cnt={};keys.forEach(k=>cnt[k]=(cnt[k]||0)+1);
