@@ -53,6 +53,23 @@ button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .poster-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .poster-actions button{min-width:0}
 @media (prefers-reduced-motion:reduce){button{transition:none}}
+/* game select: tiles */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{--t:#f0a63a;position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;min-height:96px;padding:12px 12px 12px;text-align:left;background:linear-gradient(160deg,color-mix(in srgb,var(--t) 26%,var(--panel)),var(--panel) 70%);color:var(--fg);border:1px solid color-mix(in srgb,var(--t) 55%,var(--line));border-radius:14px;overflow:hidden}
+.tile::after{content:"";position:absolute;right:-18px;top:-18px;width:64px;height:64px;border-radius:50%;background:var(--t);opacity:.16}
+.tile .ic{font-style:normal;font-size:30px;line-height:1.1;transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+.tile b{font-size:16px;line-height:1.25}
+.tile .sub{font-size:12px;opacity:.72}
+.tile.wide{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px;min-height:72px}
+.tile.wide .ic{font-size:38px} .tile.wide b{flex:1 1 40%;font-size:19px} .tile.wide .sub{flex:1 0 100%;padding-left:50px;margin-top:-4px}
+.tile:nth-child(odd):last-child{grid-column:1/-1}
+.tile[data-act=g1]{background:linear-gradient(160deg,var(--amber),#c9791f);color:#1c1308;border-color:transparent}
+.tile[data-act=rand]{border-style:dashed}
+.tile:hover .ic,.tile:focus-visible .ic{transform:rotate(-12deg) scale(1.18)}
+.tile:active{transform:scale(.96) rotate(-.6deg)}
+.tile.hl{filter:brightness(1.35);outline:3px solid var(--t);outline-offset:-3px;transform:scale(1.04)}
+.tile.hl.win .ic{transform:scale(1.4) rotate(-10deg)}
+@media (prefers-reduced-motion:no-preference){.calm .tile{animation:none}.tile{animation:pop .32s cubic-bezier(.3,1.5,.5,1) both;animation-delay:var(--d)}@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.92)}}.tile[data-act=rand] .ic{display:inline-block;animation:dieb 2.6s ease-in-out infinite}@keyframes dieb{0%,70%,100%{transform:rotate(0)}80%{transform:rotate(-18deg) translateY(-3px)}90%{transform:rotate(14deg)}}.calm .tile[data-act=rand] .ic{animation:none}}
 .row{display:flex;flex-wrap:wrap;gap:8px} .row>*{flex:1 1 120px;min-width:0}
 .card{background:linear-gradient(145deg,rgba(48,34,24,.96),rgba(29,22,17,.98));border:1px solid #58402c;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,220,160,.045)}
 input{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0;box-sizing:border-box;-webkit-user-select:text;user-select:text}
@@ -471,7 +488,20 @@ const GAMES=[
  ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2],['g12','シンクロ連想','答えを一致させろ',2]]],
  ['アクション',[['g20','ドクロ・インベーダー','協力シューティング(結果が反映される)',1]]],
  ['その他',[['mis','ミッション','秘密の指令',2],['g3','幕間ミニゲーム','サクッと',2],['rand','おまかせ','迷ったらこれ',2]]]];
-const menu=()=>GAMES.map(([t,a])=>`<p class=k>${t}</p><div class=row>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="${x[0]==='g1'?'':x[0]==='mis'?'grn':'alt'}" data-act=${x[0]}>${x[1]}<span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('');
+const ICON={g1:'🥃',g6:'🃏',g4:'🎨',g7:'💣',g9:'🤔',g8:'👑',g10:'🕵️',g11:'🍻',g12:'🔗',g20:'👾',mis:'🤫',g3:'⚡',rand:'🎲'},TINT={g1:'#f0a63a',g6:'#4aa3d8',g4:'#e0789a',g7:'#e0553a',g9:'#b58ae0',g8:'#e8c33a',g10:'#7a9be0',g11:'#5fae7a',g12:'#3fc4c4',g20:'#8a7bff',mis:'#5fae7a',g3:'#e08a3a',rand:'#f0a63a'},SECT={'会話・ブラフ':'🗣️','みんなで協力':'🤝','盛り上がる':'🔥','空気・運':'🍀','アクション':'🚀','その他':'✨'};
+const menu=()=>{let n=0;return GAMES.map(([t,a])=>`<p class=k>${SECT[t]||''} ${t}</p><div class=tiles>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="tile${x[0]==='g1'||x[0]==='rand'||x[0]==='g20'?' wide':''}" style="--t:${TINT[x[0]]||'#f0a63a'};--d:${(n++)*35}ms" data-act=${x[0]}><i class=ic>${ICON[x[0]]||'🍶'}</i><b>${x[1]}</b><span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('')};
+/* おまかせ: light up the tiles like a roulette, then open the one it lands on (same as tapping it) */
+let ROUL=0;
+function roulette(b){
+  const pool=[...document.querySelectorAll('#app .tile')].filter(t=>/^g(1|4|6|7|8|9|10|11|12)$/.test(t.dataset.act));
+  if(ROUL||!pool.length)return;ROUL=1;
+  const fin=pool[Math.random()*pool.length|0],reduce=matchMedia('(prefers-reduced-motion:reduce)').matches,steps=reduce?0:14+(Math.random()*4|0);
+  let k=0,cur=null;
+  const go1=()=>{if(cur)cur.classList.remove('hl');
+    if(k>=steps){fin.classList.add('hl','win');setTimeout(()=>{ROUL=0;if(!document.body.contains(fin))return;if(NET.on)netClick(fin.dataset.act,{...fin.dataset});else if(A[fin.dataset.act])A[fin.dataset.act](fin)},reduce?0:450);return}
+    cur=pool[((pool.indexOf(fin)+k+1-steps)%pool.length+pool.length)%pool.length];cur.classList.add('hl');k++;setTimeout(go1,50+k*k*1.1)};
+  go1();
+}
 
 /* ---- ito: line up by number ---- */
 const THEMES=[['怖いもの','怖くない','超怖い'],['重いもの','軽い','重い'],['高そうな買い物','安い','高い'],['寒い場所','暑い','寒い'],['すごい人','普通','すごい'],['モテる職業','モテない','モテる'],['辛い食べ物','辛くない','激辛'],['恥ずかしい出来事','平気','死にたい'],['大きい生き物','小さい','巨大'],['速い乗り物','遅い','速い'],['お酒の強さ','下戸','ザル'],['うるさい音','静か','爆音'],['眠くなるもの','眠れない','即寝'],['面倒な家事','楽','最悪'],['有名な人','無名','超有名'],['痛いこと','痛くない','激痛'],['楽しい遊び','退屈','最高'],['長生きな生き物','短命','長寿'],['臭いもの','無臭','悪臭'],['危険なスポーツ','安全','命がけ']];
@@ -932,6 +962,7 @@ $('#app').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
   if(act==='savePoster'){savePosterImage(false);return}
   if(act==='sharePoster'){savePosterImage(true);return}
+  if(act==='rand'){roulette(b);return}
   if(NET.on)return netClick(act,{...b.dataset});
   if(A[act])A[act](b);
 });
