@@ -124,8 +124,8 @@ const N=()=>S.players.length,nm=i=>esc(S.players[i].name);
 let LASTHTML=null;
 function render(html,after){if(!after&&html===LASTHTML)return;LASTHTML=after?null:html;cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
 /* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
-function go(html,after){if(!NET.on)return render(html,after);netShow(S.pi!=null?S.pi:'all',html)}
-function gop(i,html,after){if(!NET.on)return render(html,after);netShow(i,html)}
+function go(html,after){if(!NET.on)return render(html,after);const aud=S.pi!=null?S.pi:'all';if(S.info)return netShowInfo(aud,html,S.info);netShow(aud,html)}
+function gop(i,html,after){if(!NET.on)return render(html,after);if(S.info)return netShowInfo(i,html,S.info);netShow(i,html)}
 function drink(i,k,why){const p=S.players[i];p.lives=Math.max(0,p.lives-k);p.drinks+=k;S.log.push(`R${S.round+1} ${p.name}: ${why}`);try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}}
 const dots=p=>'<span class=dots>'+[0,1,2].map(k=>`<i class="${k<p.lives?'on':''}"></i>`).join('')+'</span>';
 const nextBtn=(t='次へ')=>`<button data-act=cb>${t}</button>`;
@@ -176,7 +176,7 @@ function readNames(){for(let i=0;i<S.n;i++){const e=$('#n'+i);if(e)S.names[i]=e.
 
 /* ---- hub ---- */
 function hub(){
-  S.inGame=false;save();
+  S.inGame=false;S.info=null;save();
   if(S.round>0&&S.round%5===0&&S.evShown!==S.round){S.evShown=S.round;S.ev=pick(EVENTS)}
   const ev=S.evShown===S.round&&S.round>0?`<div class=ev><b>ランダムイベント</b><br>${S.ev}</div>`:'';
   const note=S.note?`<div class=ev><b>インベーダーの結果</b><br>${esc(S.note)}</div>`:'';S.note='';
@@ -186,6 +186,20 @@ function hub(){
   <button class="alt" data-act=end>今夜はここまで(結果)</button>`);
 }
 const done=()=>{S.round++;hub()};
+
+/* ---- personal info cards (online): what each player should keep in mind, shown on their own phone only ---- */
+const infoCard=(title,rows,hint)=>`<div class=card><p class=k>あなたの情報・${title}</p>${rows.map(([a,b])=>`<div class=pl><span>${a}</span><b>${b}</b></div>`).join('')}${hint?`<p class=muted>${hint}</p>`:''}</div>`;
+function liarInfo(i){
+  const g=S.g;if(!g||g.phase==='intro')return '';
+  const j=g.ws.indexOf(i),isN=j>=0,isMad=i===g.mad,rows=[['お題',esc(g.topic)],['語り手',g.ws.map(w=>nm(w)).join(' / ')],['あなたの役',isN?'<span class=lose>語り手</span>':isMad?'<span class=lose>狂人</span>':'聴き手']];
+  if(isN&&g.phase!=='reveal'){const l=g.lvl[j];rows.push(['あなたの話',l===0?'<span class=win>本当にあった話</span>':`作り話 ${'★'.repeat(l)}${'☆'.repeat(3-l)}`]);if(l>0)rows.push(['入れる言葉',g.words[j].map(esc).join(' / ')])}
+  if(isMad&&g.phase!=='reveal')rows.push(['正解',`<span class=win>${g.ansText}</span>`]);
+  const voted=g.votes.length+(g.madDone?1:0),hints={role:'役職を確認中。みんなが確認し終わるまで待つ。',talk:isN?'お題の話を語ろう。指定の言葉は自然に混ぜる。':'語り手の話を聞く。矛盾や不自然さを探そう。',interro:isN?'質問には即答。詰まると怪しまれる。':'語り手に1問ずつ質問する。',vote:`投票中 ${voted}/${g.voters.length}。${isN?'みんなが見破れるか見守ろう。':''}`,reveal:''};
+  return infoCard('嘘つきグラス',rows,hints[g.phase]||'');
+}
+const diceInfo=i=>{const g=S.g;if(!g)return '';const b=g.bid;return infoCard('ダイスブラフ',[['あなたのダイス',`<span class=win>${g.dice[i].join(' ')}</span>`],['現在の宣言',b?`${nm(b.by)}「${b.f}が${b.q}個」`:'まだなし'],['場のダイス',N()*g.D+'個']],'自分のダイスは自分にだけ見える。')};
+const itoInfo=i=>{const g=S.g;if(!g)return '';return infoCard('ならべ酒場',[['テーマ',esc(g.th[0])],['1=',esc(g.th[1])],['100=',esc(g.th[2])],['あなたの数字',`<span class=win>${g.nums[i]}</span>`]],'数字は言わずに、たとえで伝える。')};
+const kingInfo=i=>{const g=S.g;if(!g)return '';return infoCard('王様ゲーム',[['あなたの役',g.r[i]?`<span class=lose>${g.r[i]}番</span>`:'<span class=win>王様</span>']],g.r[i]?'王様の命令に従う。番号は命令が終わるまで秘密。':'命令を選んで読み上げる。')};
 
 /* ---- game 1: liar ---- */
 const WORDS=['冷蔵庫','社長','終電','コンビニ','犬','雨','パスポート','カラオケ','財布','おばあちゃん','タクシー','カレー','スマホ','海','上司','結婚式','エレベーター','靴','深夜','花火','サウナ','電卓','新幹線','ラーメン','傘','宝くじ','留守電','駐車場','温泉','自販機','ゴミ箱','眼鏡','公園','カメラ','ホテル','朝帰り'];
@@ -207,7 +221,11 @@ function liar(){
   g.liar=dbl?ws[t?1:0]:(t?null:ws[0]);
   g.win=dbl?g.liar:ws[0];
   g.nomN=g.liar!==null?lvl[ws.indexOf(g.liar)]:1;
-  madOn?roleLoop(0):narrLoop(0);
+  S.info=liarInfo;g.phase='intro';
+  go(`<p class=k>嘘つきグラス</p><h2>お題: ${esc(g.topic)}</h2>
+  <div class=card><p>語り手: <b>${g.ws.map(w=>nm(w)).join(' / ')}</b>${dbl?'(片方だけが本当の話)':''}</p>
+  <p class=muted>語り手が話をする。聴き手は質問して、本当の話か作り話かを見抜く。外したらひと口。${madOn?'聴き手の中に狂人が1人いる(語り手の味方)。':''}</p></div>${nextBtn('役を確認する')}`);
+  S.cb=()=>{g.phase='role';madOn?roleLoop(0):narrLoop(0)};
 }
 function cardHtml(j){
   const g=S.g,l=g.lvl[j];
@@ -232,18 +250,18 @@ function roleLoop(p){
      :`<h2>あなたは聴き手</h2><p class=muted>語り手の嘘を見抜こう。この中に狂人が1人いる。</p><button data-act=cb>覚えた(画面を伏せる)</button>`)});
 }
 function talk(){
-  const g=S.g;S.cb=interro;
+  const g=S.g;g.phase='talk';S.cb=interro;
   go(`<p class=k>語りタイム</p><h2>${g.ws.map((w,j)=>(g.dbl?AB[j]+': ':'')+nm(w)).join(' → ')}</h2>
   <p class=muted>${g.dbl?'AとBが順に1分ずつ語る。片方だけが本当の話。':'1分ほどで語る。'}お題は「${g.topic}」。${g.madOn?'聴き手の中に狂人が1人いる。':''}</p>${nextBtn('尋問へ')}`);
 }
 function interro(){
-  S.cb=()=>voteLoop(0);
+  S.g.phase='interro';S.cb=()=>voteLoop(0);
   go(`<p class=k>尋問タイム</p><h2>聴き手は各1問</h2><p class=muted>語り手は即答。詰まったら怪しい。困ったらこれ。</p>
   <div class=card>${[...QS].sort(()=>Math.random()-.5).slice(0,3).map(q=>`<p>${q}</p>`).join('')}</div>${nextBtn('投票に進む')}`);
 }
 function voteLoop(k){
   const g=S.g;if(k>=g.voters.length)return liarReveal();
-  g.k2=k;const me=g.voters[k];
+  g.phase='vote';g.k2=k;const me=g.voters[k];
   if(me===g.mad)return pass(me,'投票',()=>go(`<h2>投票</h2><p class=muted>ボタンを押すだけ。</p><button data-act=madok>押した</button>`));
   const row=(lbl,v,cls)=>`<button class=${cls} data-act=vote data-v=${v}>${lbl}</button>`;
   pass(me,'投票',()=>go(`<h2>${g.dbl?'本当の話をしたのは?':nm(g.ws[0])+'の話は?'}</h2>
@@ -251,6 +269,7 @@ function voteLoop(k){
   <div class=row>${g.dbl?row('A: '+nm(g.ws[0]),0,'grn')+row('B: '+nm(g.ws[1]),1,'grn'):row('本当',1,'grn')+row('嘘',0,'red')}</div>`));
 }
 function liarReveal(){
+  S.g.phase='reveal';
   const g=S.g,v=g.votes,ok=x=>x[1]===g.ans,right=v.filter(ok),wrong=v.filter(x=>!ok(x));
   wrong.forEach(x=>drink(x[0],1,'嘘つきグラスで外した'));
   const fooled=wrong.length*2>v.length,caught=g.liar!==null&&right.length*2>v.length;
@@ -461,7 +480,7 @@ function dice(){
   S.g={D,dice:Array.from({length:n},()=>Array.from({length:D},()=>1+(Math.random()*6|0)).sort()),bid:null,turn:Math.random()*n|0,sel:null};
   go(`<p class=k>ダイスブラフ</p><h2>全員が${D}個のダイスを隠し持つ</h2><p>順番に、場の全ダイスに何の目が何個あるかを宣言する(例:「4が5個」)。前の宣言より、個数を増やすか、同じ個数で目を大きくする。信じられなければ「ダウト」。自分の番にだけ、自分のダイスが見える。</p>
   <p class=muted>宣言が本当なら挑戦者が、嘘なら宣言した人が飲む。ぴったりなら挑戦者は倍。</p>${nextBtn('始める')}`);
-  S.cb=diceTurn0;
+  S.info=diceInfo;S.cb=diceTurn0;
 }
 const diceTurn0=()=>pass(S.g.turn,'ダイスブラフ',diceTurn);
 const minBid=b=>!b?{q:1,f:1}:b.f<6?{q:b.q,f:b.f+1}:{q:b.q+1,f:1};
@@ -483,7 +502,7 @@ function ito(){
   S.g={th:pick(THEMES),nums:pool.slice(0,n),ord:[]};
   go(`<p class=k>ならべ酒場</p><h2>テーマ: ${S.g.th[0]}</h2><p>全員に1〜100の秘密の数字を配る。数字は言わず、テーマに合う言葉やたとえだけで表現し、相談して小さい順に並べる。</p>
   <p class=muted>順番が間違っていた人がひと口。完璧なら全員セーフでカードが出る。</p>${nextBtn('数字を配る')}`);
-  S.cb=()=>itoLoop(0);
+  S.info=itoInfo;S.cb=()=>itoLoop(0);
 }
 function itoLoop(i){
   const g=S.g;if(i>=N()){S.cb=itoOrder;return go(`<p class=k>相談タイム</p><h2>${g.th[0]}</h2><p>1=${g.th[1]} / 100=${g.th[2]}</p><p class=muted>数字は言わない。たとえで表現して、全員で小さい順を決める。</p>${nextBtn('並びが決まった')}`)}
@@ -611,7 +630,7 @@ function king(){
   const n=N(),r=[0,...Array.from({length:n-1},(_,i)=>i+1)].sort(()=>Math.random()-.5);
   S.g={r};
   go(`<p class=k>王様ゲーム</p><h2>王様の命令は絶対</h2><p>全員が秘密の役を引く。王様1人と、残りは番号。王様が命令を出し、その番号の人が従う。番号は命令が終わるまで秘密。</p>${nextBtn('役を配る')}`);
-  S.cb=()=>kingLoop(0);
+  S.info=kingInfo;S.cb=()=>kingLoop(0);
 }
 function kingLoop(i){
   const g=S.g;if(i>=N())return kingMain();
@@ -741,7 +760,7 @@ function netShow(aud,html,o={}){
   const seq=++NET.seq,mk=m=>({ep:NET.ep,seq,roster:NET.roster,...m}),room=NET.room,pubs=[];
   const P=(to,msg)=>{pubs.push({to,msg});room.pub(to==='all'?'s/all':'s/'+pidOf(to),msg,true)};
   const wait=o.wait||(typeof aud==='number'?waitHtml(aud):'');
-  const cur=NET.cur={seq,aud,html,w:o.w||null,cb:o.cb||null,each:o.each||null,done:new Set(),res:{},expect:(o.expect||(o.each?Object.keys(o.each).filter(k=>o.each[k].w).map(Number):null)),wait};
+  const cur=NET.cur={seq,aud,html,w:o.w||null,cb:o.cb||null,each:o.each||null,done:new Set(),res:{},actors:o.actors||null,expect:(o.expect||(o.each?Object.keys(o.each).filter(k=>o.each[k].w).map(Number):null)),wait};
   if(aud==='all')P('all',mk({aud,html}));
   else if(aud==='each'){P('all',mk({aud,html:wait}));Object.keys(o.each).forEach(i=>P(+i,mk({aud,html:o.each[i].html||'',w:o.each[i].w||null})))}
   else{P('all',mk({aud,html:wait}));P(aud,mk({aud,html,w:o.w||null}))}
@@ -758,9 +777,19 @@ function netCheckRejoin(){
     if(i>0){NET.roster[i]=p.peer;ch=true}});
   if(ch)netRepublish();
 }
+/* a screen plus a personal card (role, own dice/number, progress) for every phone; only the actor(s) get the buttons */
+function netShowInfo(aud,html,info){
+  const n=N(),each={},actors=aud==='all'?[...Array(n).keys()]:[aud];
+  for(let i=0;i<n;i++)each[i]={html:aud==='all'?html+info(i):(i===aud?html:waitHtml(aud)+info(i))};
+  netShow('each','',{each,actors,wait:aud==='all'?html:waitHtml(aud),expect:[]});
+}
 const netShowEach=(each,o)=>netShow('each','',{each,wait:o.wait,cb:o.cb,expect:o.expect});
 function netHostView(){
   const c=NET.cur,i=NET.me;
+  if(c.aud==='each'&&c.actors&&c.actors.length===1&&!c.actors.includes(i)){
+    const a=c.actors[0];
+    return showMsg({html:NET.proxy.has(a)?c.each[a].html:c.each[i].html+`<button class="alt sm" data-act=proxy data-i=${a}>代行する(このスマホで操作)</button>`});
+  }
   if(c.aud==='each'&&c.each[i])return showMsg({html:c.each[i].html||'',w:c.each[i].w});
   if(c.aud==='all'||c.aud===i||(typeof c.aud==='number'&&NET.proxy.has(c.aud)))return showMsg({html:c.html,w:c.w});
   showMsg({html:c.wait+(typeof c.aud==='number'?`<button class="alt sm" data-act=proxy data-i=${c.aud}>代行する(このスマホで操作)</button>`:'')});
@@ -794,14 +823,14 @@ function netHandle(pid,m,as){
   const i=as!==undefined?as:NET.roster.indexOf(pid);if(i<0)return;
   if(m.act==='wdone')return netWDone(i,m.data);
   if(m.act==='proxy'){if(i!==0)return;NET.proxy.add(+m.data.i);return netHostView()}
-  if(c.aud==='each')return;
+  if(c.aud==='each'&&!(c.actors&&c.actors.includes(i)))return;
   if(typeof c.aud==='number'&&c.aud!==i)return;
   if(!Object.prototype.hasOwnProperty.call(A,m.act)||typeof A[m.act]!=='function'||REMOTE_DENY.has(m.act))return;
   if(!allowed(m.act,i,m.data||{}))return;
   A[m.act]({dataset:m.data&&typeof m.data==='object'?m.data:{}});
 }
 function netClick(act,data){
-  if(NET.host){const c=NET.cur,as=(typeof c.aud==='number'&&NET.proxy.has(c.aud))?c.aud:NET.me;netHandle(pidOf(0),{ep:NET.ep,sid:c.seq,act,data},as)}
+  if(NET.host){const c=NET.cur,as=(typeof c.aud==='number'&&NET.proxy.has(c.aud))?c.aud:(c.aud==='each'&&c.actors&&c.actors.length===1&&!c.actors.includes(NET.me)&&NET.proxy.has(c.actors[0]))?c.actors[0]:NET.me;netHandle(pidOf(0),{ep:NET.ep,sid:c.seq,act,data},as)}
   else if(NET.cur)NET.room.pub('a/host',{from:NET.room.id,ep:NET.ep,sid:NET.cur.seq,act,data});
 }
 /* client: pick the newest screen addressed to me, else the public one */
@@ -899,7 +928,7 @@ const A={
  np(e){S.g.picks.push(+e.dataset.v);numLoop(S.g.k+1)},
  kre(){kingMain()},kopen(){kingOpen()},
  kref(e){drink(+e.dataset.i,1,'王様の命令を拒否');kingOpen()},
- madok(){voteLoop(S.g.k2+1)},
+ madok(){S.g.madDone=true;voteLoop(S.g.k2+1)},
  dwin(){const g=S.g;go(`<h2>正解は「${g.topic}」</h2>${g.said?`<p class=muted>${nm(g.a)}の回答「${esc(g.said)}」</p>`:''}<p class=win>${nm(g.a)}の勝ち。描き手を1人指名してひと口</p><div class=row>${g.drawers.map(i=>`<button class=red data-act=dnom data-i=${i}>${nm(i)}</button>`).join('')}</div>${chain(g)}`)},
  dnom(e){drink(+e.dataset.i,1,'お絵描きで指名された');done()},
  dlose(){const g=S.g,l=g.drawers[g.drawers.length-1];drink(g.a,1,'お絵描きで外した');drink(l,1,'お絵描きの最後の描き手');
