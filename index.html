@@ -115,10 +115,11 @@ canvas{max-width:400px}
 .knob{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd78a,var(--amber) 55%,#b8741c);box-shadow:0 4px 10px rgba(0,0,0,.45);transition:transform .07s ease-out;pointer-events:none}
 .stick.on .knob{transition:none}
 .bmroot{display:flex;flex-direction:column;gap:12px;align-items:center}
+.bmtop{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}.bmsens{min-height:30px;padding:2px 10px;font-size:12px;border-radius:15px}
 @media (orientation:landscape) and (max-height:540px){
   .bm #app{max-width:none}
   .bmroot{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-rows:auto 1fr auto;gap:4px 8px;align-items:center;justify-items:center}
-  .bmst{grid-column:1/-1;grid-row:1}#bmc{grid-column:2;grid-row:2}.bmme{grid-column:2;grid-row:3}
+  .bmtop{grid-column:1/-1;grid-row:1}#bmc{grid-column:2;grid-row:2}.bmme{grid-column:2;grid-row:3}
   .bmpad{display:contents}.stick{grid-column:1;grid-row:2 / span 2;justify-self:start}.bombbtn{grid-column:3;grid-row:2 / span 2;justify-self:end}
 }
 .bmleg{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;margin:8px 0}.bmleg i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;color:#17120f;font-style:normal;font-weight:700;margin-right:4px}
@@ -854,19 +855,21 @@ const bmVib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
 WID.bomber=(p,done)=>{
   const me=p.i,play=me<p.np,T=40,cols=Math.min(p.w,VCOLS),rows=Math.min(p.h,VROWS),cam={x:0,y:0,on:0},tok=BM.tok=Math.random();BM.vis=[];BM.pt=[];BM.feed=[];BM.shake=0;BM.seen=null;if(!NET.host)BM.cur=null;
   if(!NET.host&&BM.sroom!==NET.room){BM.sroom=NET.room;NET.room.sub('bm/st',BM.recv)}
-  render(`<div class=bmroot><div id=bmst class=bmst></div><canvas id=bmc width=${cols*T} height=${rows*T}></canvas><div id=bmme class=bmme></div>
+  render(`<div class=bmroot><div class=bmtop><div id=bmst class=bmst></div>${play?'<button type=button id=bmsens class="alt sm bmsens"></button>':''}</div><canvas id=bmc width=${cols*T} height=${rows*T}></canvas><div id=bmme class=bmme></div>
   ${play?`<div class=bmpad><div class=stick id=stk aria-label="移動スティック"><div class=sbase><i class=a1>▲</i><i class=a2>▶</i><i class=a3>▼</i><i class=a4>◀</i><b class=knob></b></div></div><button id=bb class=bombbtn aria-label="爆弾">💣</button></div>`:'<p class=muted>観戦中</p>'}</div>`,()=>{
     document.documentElement.classList.add('bm');   // landscape: let #app use the full width (no :has() needed)
     const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,sx=0,sy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,predT=0;
     const send=bomb=>{const m={dx,dy,ax:sx,ay:sy,bomb:bomb?1:0,n:++seq};if(NET.host){bmInput(BM.sim,0,m);if(bomb)bmPub()}else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
     const dir=(x,y,a,b)=>{bmSnd('');dx=x;dy=y;sx=a||0;sy=b||0;send(0)};
     if(play){
+      let sens=1;try{sens=Math.max(0,Math.min(2,+localStorage.getItem('dk_stick')||1))}catch(_){}
+      const SENS=[24,15,9],SNAME=['鈍め','標準','敏感'],sb=$('#bmsens');if(sb){sb.textContent='スティック '+SNAME[sens];sb.onclick=()=>{sens=(sens+1)%3;sb.textContent='スティック '+SNAME[sens];try{localStorage.setItem('dk_stick',sens)}catch(_){}}}   // per-phone sensitivity: how far the knob must move before the skull walks
       const pad=$('#stk'),base=pad.querySelector('.sbase'),knob=pad.querySelector('.knob'),R=48;   // fixed stick: the base stays put, the whole pad area is the touch target
       const aim=e=>{
         const b=base.getBoundingClientRect();let vx=e.clientX-(b.left+b.width/2),vy=e.clientY-(b.top+b.height/2);
         const d=Math.hypot(vx,vy),k=d>R?R/d:1;knob.style.transform=`translate(${vx*k}px,${vy*k}px)`;
         const ax=Math.abs(vx),ay=Math.abs(vy);let nx=0,ny=0,qx=0,qy=0;
-        if(d>(dx||dy?10:15)){   // 8 directions: near an axis = straight, in between = diagonal (main axis sticks to the one already in use, the other is the fallback)
+        if(d>(dx||dy?SENS[sens]*.67:SENS[sens])){   // 8 directions: near an axis = straight, in between = diagonal (main axis sticks to the one already in use, the other is the fallback)
           if(ay<ax*.414)nx=Math.sign(vx);
           else if(ax<ay*.414)ny=Math.sign(vy);
           else{const horiz=dx!==0?true:dy!==0?false:ax>=ay;if(horiz){nx=Math.sign(vx);qy=Math.sign(vy)}else{ny=Math.sign(vy);qx=Math.sign(vx)}}
