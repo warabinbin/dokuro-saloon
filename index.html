@@ -62,6 +62,10 @@ button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .tile .sub{font-size:12px;opacity:.72}
 .tile.wide{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px;min-height:72px}
 .tile.wide .ic{font-size:38px} .tile.wide b{flex:1 1 40%;font-size:19px} .tile.wide .sub{flex:1 0 100%;padding-left:50px;margin-top:-4px}
+.pal{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-self:center}
+.sw{--c:#444;min-height:0;width:36px;height:36px;padding:0;border-radius:50%;background:var(--c);border:3px solid var(--mute);font-size:14px;color:#241b14}
+.sw.er{background:#f6efe3} .sw.sz{background:var(--panel);color:var(--fg)}
+.sw.sel{border-color:var(--fg);transform:scale(1.12)}
 .tile:nth-child(odd):last-child{grid-column:1/-1}
 .tile[data-act=g1]{background:linear-gradient(160deg,var(--amber),#c9791f);color:#1c1308;border-color:transparent}
 .tile[data-act=rand]{border-style:dashed}
@@ -409,10 +413,13 @@ const WID={
  }),
  draw:(p,done)=>{
   render((p.topic?`<p class=k>お題(あなただけが知る)</p><h2>${esc(p.topic)}</h2>`:`<p class=k>前の人の絵(これを描く)</p><img src="${p.prev}" alt="前の人の絵" style="width:55%;max-width:200px;border-radius:10px;align-self:center">`)
-   +`<p id=tm class=muted>残り ${p.secs}秒</p><canvas id=cv width=320 height=320></canvas><button id=ok>描き終わり</button>`,()=>{
+   +`<p id=tm class=muted>残り ${p.secs}秒</p><canvas id=cv width=320 height=320></canvas><div class=pal id=pal>${PAL.map(([c,n])=>`<button type=button class=sw style="--c:${c}" data-c="${c}" aria-label="${n}"></button>`).join('')}<button type=button class="sw er" data-c="#f6efe3" aria-label="消しゴム">消</button><button type=button class="sw sz" id=sz aria-label="太さ">太</button></div><button id=ok>描き終わり</button>`,()=>{
    const cv=$('#cv'),c=cv.getContext('2d');c.fillStyle='#f6efe3';c.fillRect(0,0,320,320);
    c.strokeStyle='#241b14';c.lineWidth=5;c.lineCap='round';c.lineJoin='round';
-   let on=false,fin=0,t=p.secs;
+   let on=false,fin=0,t=p.secs,big=0;
+   const pickC=b=>{c.strokeStyle=b.dataset.c;document.querySelectorAll('#pal .sw[data-c]').forEach(x=>x.classList.toggle('sel',x===b))};
+   document.querySelectorAll('#pal .sw[data-c]').forEach(b=>b.onclick=()=>pickC(b));pickC($('#pal .sw'));
+   $('#sz').onclick=()=>{big=!big;c.lineWidth=big?14:5;$('#sz').classList.toggle('sel',!!big)};
    const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*320/r.width,(e.clientY-r.top)*320/r.height]};
    cv.onpointerdown=e=>{on=true;cv.setPointerCapture(e.pointerId);const[x,y]=pt(e);c.beginPath();c.moveTo(x,y);c.lineTo(x+.1,y);c.stroke()};
    cv.onpointermove=e=>{if(!on)return;const[x,y]=pt(e);c.lineTo(x,y);c.stroke()};
@@ -488,6 +495,7 @@ const GAMES=[
  ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2],['g12','シンクロ連想','答えを一致させろ',2]]],
  ['アクション',[['g20','ドクロ・インベーダー','協力シューティング(結果が反映される)',1]]],
  ['その他',[['mis','ミッション','秘密の指令',2],['g3','幕間ミニゲーム','サクッと',2],['rand','おまかせ','迷ったらこれ',2]]]];
+const PAL=[['#241b14','黒'],['#e0553a','赤'],['#2f7fc1','青'],['#3f9a5a','緑'],['#e8b02a','黄'],['#8a5a33','茶']];
 const ICON={g1:'🥃',g6:'🃏',g4:'🎨',g7:'💣',g9:'🤔',g8:'👑',g10:'🕵️',g11:'🍻',g12:'🔗',g20:'👾',mis:'🤫',g3:'⚡',rand:'🎲'},TINT={g1:'#f0a63a',g6:'#4aa3d8',g4:'#e0789a',g7:'#e0553a',g9:'#b58ae0',g8:'#e8c33a',g10:'#7a9be0',g11:'#5fae7a',g12:'#3fc4c4',g20:'#8a7bff',mis:'#5fae7a',g3:'#e08a3a',rand:'#f0a63a'},SECT={'会話・ブラフ':'🗣️','みんなで協力':'🤝','盛り上がる':'🔥','空気・運':'🍀','アクション':'🚀','その他':'✨'};
 const menu=()=>{let n=0;return GAMES.map(([t,a])=>`<p class=k>${SECT[t]||''} ${t}</p><div class=tiles>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="tile${x[0]==='g1'||x[0]==='rand'||x[0]==='g20'?' wide':''}" style="--t:${TINT[x[0]]||'#f0a63a'};--d:${(n++)*35}ms" data-act=${x[0]}><i class=ic>${ICON[x[0]]||'🍶'}</i><b>${x[1]}</b><span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('')};
 /* おまかせ: light up the tiles like a roulette, then open the one it lands on (same as tapping it) */
