@@ -44,6 +44,7 @@ button[disabled]{opacity:.4;cursor:not-allowed}
 ol{margin:0;padding-left:1.4em}
 @media (prefers-reduced-motion:no-preference){#app>*{animation:in .18s ease-out}@keyframes in{from{opacity:.4;transform:translateY(6px)}}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
 <div id="app"></div>
 <script>
 const $=s=>document.querySelector(s),pick=a=>a[Math.random()*a.length|0],clamp=(v,m=1)=>Math.max(-m,Math.min(m,v));
@@ -52,11 +53,14 @@ const TOPICS=['最近いちばん恥ずかしかったこと','人生で一番�
 const EVENTS=['全員、利き手と反対の手でスマホを持つこと','最年少が1人指名して、ひと口飲ませる','全員で乾杯してから次へ','次の1ラウンド、語尾に「ござる」をつける','スマホを持つ人は立って操作する','いま一番酔ってそうな人が1人を指名して乾杯'];
 const S={players:[],names:['','','',''],n:4,level:1,round:0,log:[],g:null,cb:null,raf:0,evShown:-1,ev:'',narr:-1};
 const N=()=>S.players.length,nm=i=>esc(S.players[i].name);
-function go(html,after){cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;scrollTo(0,0);after&&after()}
+function render(html,after){cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;scrollTo(0,0);after&&after()}
+/* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
+function go(html,after){if(!NET.on)return render(html,after);netShow(S.pi!=null?S.pi:'all',html)}
+function gop(i,html,after){if(!NET.on)return render(html,after);netShow(i,html)}
 function drink(i,k,why){const p=S.players[i];p.lives=Math.max(0,p.lives-k);p.drinks+=k;S.log.push(`R${S.round+1} ${p.name}: ${why}`);try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}}
 const dots=p=>'<span class=dots>'+[0,1,2].map(k=>`<i class="${k<p.lives?'on':''}"></i>`).join('')+'</span>';
 const nextBtn=(t='次へ')=>`<button data-act=cb>${t}</button>`;
-function pass(i,label,next){S.cb=next;go(`<p class=k>${label}</p><h2>${nm(i)}にスマホを渡して</h2><p class=muted>他の人は画面を見ない</p><button data-act=cb>私が${nm(i)}です</button>`)}
+function pass(i,label,next){S.cb=next;if(NET.on){S.pi=i;try{next()}finally{S.pi=null}return}go(`<p class=k>${label}</p><h2>${nm(i)}にスマホを渡して</h2><p class=muted>他の人は画面を見ない</p><button data-act=cb>私が${nm(i)}です</button>`)}
 
 /* ---- setup ---- */
 function setup(){
@@ -64,7 +68,7 @@ function setup(){
   const inputs=Array.from({length:S.n},(_,i)=>`<input id="n${i}" maxlength=8 placeholder="プレイヤー${i+1}" value="${esc(S.names[i]||'')}">`).join('');
   go(`<h1>ドクロ酒場</h1>${sv?`<button data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}<p class=muted>1台のスマホを回して遊ぶ試作版。飲めない人は水でOK。ライフが減る=ひと口。</p>
   <div class=card><h3>人数</h3><div class=row>${[2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===S.n?'sel':''}" data-act=setn data-i=${n}>${n}</button>`).join('')}</div>${inputs}</div>
-  <p class=muted>嘘つきグラス: 5人以上は毎回、狂人が1人。4人は5回に1回ほど狂人あり。</p><button data-act=start>乾杯!</button>`);
+  <p class=muted>嘘つきグラス: 5人以上は毎回、狂人が1人。4人は5回に1回ほど狂人あり。</p><button data-act=start>乾杯!(1台を回す)</button>${window.mqtt&&window.top===window?'<button class=alt data-act=netmenu>オンライン(各自のスマホで遊ぶ)</button><p class=muted>オンライン: 幹事のスマホがゲームを進行する。全員が自分のスマホで操作。</p>':''}`);
 }
 /* ---- save / resume + link to the invaders page (same origin, so localStorage is shared) ---- */
 const SAVE_KEYS=['players','names','n','round','log','evShown','ev','narr','dans'];
@@ -206,25 +210,13 @@ function draw(){
 }
 function drawLoop(k){
   const g=S.g;if(k>=g.drawers.length)return guess();
-  pass(g.drawers[k],'お絵描き '+(k+1)+'/'+g.drawers.length,()=>go(
-    (k===0?`<p class=k>お題(あなただけが知る)</p><h2>${g.topic}</h2>`:`<p class=k>前の人の絵(これを描く)</p><img src="${g.imgs[k-1]}" alt="前の人の絵" style="width:55%;max-width:200px;border-radius:10px;align-self:center">`)
-    +`<p id=tm class=muted>残り 20秒</p><canvas id=cv width=320 height=320></canvas><button id=ok>描き終わり</button>`,()=>{
-    const cv=$('#cv'),c=cv.getContext('2d');c.fillStyle='#f6efe3';c.fillRect(0,0,320,320);
-    c.strokeStyle='#241b14';c.lineWidth=5;c.lineCap='round';c.lineJoin='round';
-    let on=false,fin=0,t=20;
-    const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*320/r.width,(e.clientY-r.top)*320/r.height]};
-    cv.onpointerdown=e=>{on=true;cv.setPointerCapture(e.pointerId);const[x,y]=pt(e);c.beginPath();c.moveTo(x,y);c.lineTo(x+.1,y);c.stroke()};
-    cv.onpointermove=e=>{if(!on)return;const[x,y]=pt(e);c.lineTo(x,y);c.stroke()};
-    cv.onpointerup=()=>{on=false};
-    const end=()=>{if(fin)return;fin=1;clearInterval(id);g.imgs[k]=cv.toDataURL();drawLoop(k+1)};
-    const id=setInterval(()=>{t--;const e=$('#tm');if(e)e.textContent='残り '+t+'秒';if(t<=0)end()},1000);
-    $('#ok').onclick=end;
-  }));
+  const d=g.drawers[k];
+  pass(d,'お絵描き '+(k+1)+'/'+g.drawers.length,()=>askW(d,'draw',{topic:k===0?g.topic:null,prev:k>0?g.imgs[k-1]:null,secs:20},res=>{g.imgs[k]=res.img;drawLoop(k+1)},`<p class=k>お絵描きリレー</p><h2>${nm(d)}が描いている</h2><p class=muted>回答者は見ないこと。</p>`));
 }
 function guess(){
-  const g=S.g;
-  pass(g.a,'回答者',()=>go(`<h2>この絵はなに?</h2><img src="${g.imgs[g.imgs.length-1]}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center"><p class=muted>声に出して答える。判定は全員で。</p>
-  <button class=grn data-act=dwin>正解</button><button class=red data-act=dlose>不正解</button>`));
+  const g=S.g,html=`<h2>この絵はなに?</h2><img src="${g.imgs[g.imgs.length-1]}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center"><p class=muted>回答者は声に出して答える。判定は全員で。</p>
+  <button class=grn data-act=dwin>正解</button><button class=red data-act=dlose>不正解</button>`;
+  if(NET.on)go(html);else pass(g.a,'回答者',()=>go(html));
 }
 
 /* ---- missions ---- */
@@ -246,17 +238,25 @@ const MINI={
 function mini(kind){
   S.g={kind,sc:[],target:pick([2,3,4,5,6])*1000};
   const desc=kind==='timing'?`心の中で数えて${S.g.target/1000}.00秒ぴったりで止める。数字は途中で消える。`:MINI[kind].desc;
-  go(`<p class=k>ほろ酔いタップバトル</p><h2>${MINI[kind].name}</h2><p>${desc}</p><p class=muted>最下位がひと口</p>${nextBtn('始める')}`);
-  S.cb=()=>miniLoop(0);
+  go(`<p class=k>ほろ酔いタップバトル</p><h2>${MINI[kind].name}</h2><p>${desc}</p><p class=muted>最下位がひと口${NET.on&&kind!=='heads'?'。全員が自分のスマホで同時に挑戦する':''}</p>${nextBtn('始める')}`);
+  S.cb=()=>NET.on?(kind==='heads'?headsNet(0):miniNet()):miniLoop(0);
 }
+const HW=['医者','警察官','美容師','YouTuber','忍者','サンタクロース','ドラえもん','ピカチュウ','アンパンマン','富士山','東京タワー','スカイツリー','ラーメン','カレー','寿司','焼肉','餃子','唐揚げ','ビール','日本酒','ワイン','カラオケ','居酒屋','コンビニ','温泉','新幹線','飛行機','自転車','猫','犬','パンダ','ライオン','ペンギン','イルカ','カメ','サッカー','野球','バスケ','テニス','ギター','ピアノ','ドラム','スマホ','冷蔵庫','掃除機','テレビ','傘','眼鏡','マスク','財布','プロポーズ','結婚式','二日酔い','終電','残業','給料日','花火','クリスマス','お正月','海水浴'];
+const shuf=a=>[...a].sort(()=>Math.random()-.5);
 function miniLoop(k){
-  if(k>=N())return miniResult();
-  S.g.k=k;MINI[S.g.kind].free?PLAY[S.g.kind](k):pass(k,MINI[S.g.kind].name,()=>PLAY[S.g.kind](k));
+  const g=S.g;if(k>=N())return miniResult();g.k=k;
+  const kind=g.kind,run=()=>runW(kind,{T:g.target,who:S.players[k].name,words:shuf(HW),secs:45},res=>{g.sc[k]=res;miniLoop(k+1)});
+  MINI[kind].free?run():pass(k,MINI[kind].name,run);
 }
-function fin(k,score,label){
-  S.g.sc[k]={score,label};cancelAnimationFrame(S.raf);
-  $('#res').innerHTML=`<p class=big style="font-size:30px;padding:8px 0">${label}</p>`+nextBtn();
-  S.cb=()=>miniLoop(k+1);
+function miniNet(){
+  const g=S.g,each={};S.players.forEach((_,i)=>{each[i]={w:{name:g.kind,params:{T:g.target}}}});
+  netShowEach(each,{wait:`<p class=k>${MINI[g.kind].name}</p><h2>各自のスマホで挑戦中</h2><p class=muted>全員が終わるまで待つ。</p>`,cb:res=>{g.sc=S.players.map((_,i)=>res[i]);miniResult()}});
+}
+function headsNet(k){
+  const g=S.g,n=N();if(k>=n)return miniResult();
+  const reader=(k+1)%n;
+  netShowEach({[k]:{html:`<p class=k>おでこクイズ</p><h2>あなたが当てる番</h2><p>${nm(reader)}が画面を見て、言葉そのものを使わずに説明する。45秒で何問当てられるか。</p>`},[reader]:{w:{name:'headsread',params:{words:shuf(HW),secs:45,guesser:S.players[k].name}}}},
+   {wait:`<p class=k>おでこクイズ</p><h2>${nm(k)}が当てる番</h2><p class=muted>${nm(reader)}が説明係。</p>`,expect:[reader],cb:res=>{const c=res[reader].c;g.sc[k]={score:-c,label:c+'問'};headsNet(k+1)}});
 }
 function miniResult(){
   const r=S.g.sc.map((x,i)=>({i,...x})).sort((a,b)=>a.score-b.score),last=r[r.length-1];
@@ -265,23 +265,52 @@ function miniResult(){
   <p class=lose>${nm(last.i)}がひと口</p>${nextBtn()}`);
   S.cb=done;
 }
-const HW=['医者','警察官','美容師','YouTuber','忍者','サンタクロース','ドラえもん','ピカチュウ','アンパンマン','富士山','東京タワー','スカイツリー','ラーメン','カレー','寿司','焼肉','餃子','唐揚げ','ビール','日本酒','ワイン','カラオケ','居酒屋','コンビニ','温泉','新幹線','飛行機','自転車','猫','犬','パンダ','ライオン','ペンギン','イルカ','カメ','サッカー','野球','バスケ','テニス','ギター','ピアノ','ドラム','スマホ','冷蔵庫','掃除機','テレビ','傘','眼鏡','マスク','財布','プロポーズ','結婚式','二日酔い','終電','残業','給料日','花火','クリスマス','お正月','海水浴'];
-const PLAY={
- heads(k){
-  const ws=[...HW].sort(()=>Math.random()-.5);
-  go(`<p class=k>おでこクイズ</p><h2>${nm(k)}が当てる番</h2><p>${nm(k)}は画面を見ない。他の誰かがスマホを持ち、画面の言葉を、その言葉を使わずに説明する(ジェスチャーOK)。45秒で何問当てられるか。</p><button id=hs>スタート</button>`,()=>{
-   $('#hs').onclick=()=>{let i=0,c=0,t=45;
-    go(`<p id=ht class=muted>残り 45秒 / 正解 0</p><div class=big id=hw style="font-size:42px">${ws[0]}</div><div class=row><button class=grn id=hy>正解</button><button class=alt id=hp>パス</button></div><div id=res></div>`,()=>{
-     const nxt=()=>{i=(i+1)%ws.length;$('#hw').textContent=ws[i]};
-     $('#hy').onclick=()=>{c++;nxt()};$('#hp').onclick=nxt;
-     S.tmr=setInterval(()=>{t--;const e=$('#ht');if(e)e.textContent='残り '+t+'秒 / 正解 '+c;
-      if(t<=0){clearInterval(S.tmr);$('#hy').remove();$('#hp').remove();$('#hw').textContent='終了';fin(k,-c,c+'問')}},1000)})}})},
- timing(k){const T=S.g.target;go(`<h2>${T/1000}.00秒で止めろ</h2><div class=big id=tm>0.00</div><button id=b>スタート</button><div id=res></div>`,()=>{
+/* widgets: small self-contained screens that run on whichever phone shows them and hand back one result */
+const wfin=(done,res)=>{const r=$('#res');if(r)r.innerHTML=`<p class=big style="font-size:30px;padding:8px 0">${res.label}</p><button id=wnext>次へ</button>`;const b=$('#wnext');if(b)b.onclick=()=>done(res)};
+const WID={
+ draw:(p,done)=>{
+  render((p.topic?`<p class=k>お題(あなただけが知る)</p><h2>${esc(p.topic)}</h2>`:`<p class=k>前の人の絵(これを描く)</p><img src="${p.prev}" alt="前の人の絵" style="width:55%;max-width:200px;border-radius:10px;align-self:center">`)
+   +`<p id=tm class=muted>残り ${p.secs}秒</p><canvas id=cv width=320 height=320></canvas><button id=ok>描き終わり</button>`,()=>{
+   const cv=$('#cv'),c=cv.getContext('2d');c.fillStyle='#f6efe3';c.fillRect(0,0,320,320);
+   c.strokeStyle='#241b14';c.lineWidth=5;c.lineCap='round';c.lineJoin='round';
+   let on=false,fin=0,t=p.secs;
+   const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*320/r.width,(e.clientY-r.top)*320/r.height]};
+   cv.onpointerdown=e=>{on=true;cv.setPointerCapture(e.pointerId);const[x,y]=pt(e);c.beginPath();c.moveTo(x,y);c.lineTo(x+.1,y);c.stroke()};
+   cv.onpointermove=e=>{if(!on)return;const[x,y]=pt(e);c.lineTo(x,y);c.stroke()};
+   cv.onpointerup=()=>{on=false};
+   const end=()=>{if(fin)return;fin=1;clearInterval(id);done({img:cv.toDataURL()})};
+   const id=setInterval(()=>{t--;const e=$('#tm');if(e)e.textContent='残り '+t+'秒';if(t<=0)end()},1000);S.tmr=id;
+   $('#ok').onclick=end;
+  });
+ },
+ headsread:(p,done)=>{
+  let i=0,c=0,t=p.secs;const ws=p.words;
+  render(`<p class=k>おでこクイズ</p><h2>${esc(p.guesser)}に説明する</h2><p class=muted>言葉そのものはNG。ジェスチャーOK。</p><p id=ht class=muted>残り ${t}秒 / 正解 0</p><div class=big id=hw style="font-size:42px">${esc(ws[0])}</div><div class=row><button class=grn id=hy>正解</button><button class=alt id=hp>パス</button></div>`,()=>{
+   const nxt=()=>{i=(i+1)%ws.length;$('#hw').textContent=ws[i]};
+   $('#hy').onclick=()=>{c++;nxt()};$('#hp').onclick=nxt;
+   S.tmr=setInterval(()=>{t--;const e=$('#ht');if(e)e.textContent='残り '+t+'秒 / 正解 '+c;if(t<=0){clearInterval(S.tmr);done({c})}},1000);
+  });
+ },
+ heads:(p,done)=>{
+  render(`<p class=k>おでこクイズ</p><h2>${esc(p.who)}が当てる番</h2><p>${esc(p.who)}は画面を見ない。他の誰かがスマホを持ち、画面の言葉を、その言葉を使わずに説明する(ジェスチャーOK)。45秒で何問当てられるか。</p><button id=hs>スタート</button>`,()=>{
+   $('#hs').onclick=()=>WID.headsread({words:p.words,secs:p.secs,guesser:p.who},r=>done({score:-r.c,label:r.c+'問'}));
+  });
+ },
+ bombpass:(p,done)=>{
+  const t0=performance.now();
+  render(`<p class=k>爆弾リレー</p><h2>お題: ${esc(p.cat)}</h2><div class=big id=bm style="font-size:96px">●</div><p>答えたら、次に渡す人を押す</p><div class=row>${p.targets.map(t=>`<button class=red id="bp${t.k}">${esc(t.name)}</button>`).join('')}</div>`,()=>{
+   const tick=()=>{const rem=Math.max(0,p.remain-(performance.now()-t0));beep(rem/p.total<.3?1300:880,60);const e=$('#bm');if(e)e.style.opacity=e.style.opacity==='.3'?'1':'.3';S.tmr=setTimeout(tick,Math.max(110,700*(rem/p.total)+110))};
+   tick();
+   p.targets.forEach(t=>{$('#bp'+t.k).onclick=()=>{clearTimeout(S.tmr);done({to:t.k})}});
+  });
+ },
+ timing:(p,done)=>{const T=p.T;render(`<h2>${T/1000}.00秒で止めろ</h2><div class=big id=tm>0.00</div><button id=b>スタート</button><div id=res></div>`,()=>{
   const b=$('#b'),tm=$('#tm');let st=0,t0=0,id;
   b.onclick=()=>{
    if(!st){st=1;t0=performance.now();b.textContent='止める';id=setInterval(()=>{const d=performance.now()-t0;tm.textContent=d<800?(d/1000).toFixed(2):'?.??'},30)}
-   else{clearInterval(id);const d=performance.now()-t0;b.remove();tm.textContent=(d/1000).toFixed(2);fin(k,Math.abs(d-T),`誤差 ${Math.round(Math.abs(d-T))}ms`)}}})},
- react(k){go(`<h2>緑になったらタップ</h2><div class=pad id=pad>待て…</div><div id=res></div>`,()=>{
+   else{clearInterval(id);const d=performance.now()-t0;b.remove();tm.textContent=(d/1000).toFixed(2);wfin(done,{score:Math.abs(d-T),label:`誤差 ${Math.round(Math.abs(d-T))}ms`})}};
+ })},
+ react:(p,done)=>{render(`<h2>緑になったらタップ</h2><div class=pad id=pad>待て…</div><div id=res></div>`,()=>{
   const pad=$('#pad'),ids=[];let on=0,t0=0,over=0,at=1500+Math.random()*1500;
   const later=(ms,f)=>ids.push(setTimeout(f,ms));
   for(let i=0,f=1+(Math.random()*3|0);i<f;i++){
@@ -289,17 +318,28 @@ const PLAY={
    later(at+600,()=>{pad.className='pad';pad.textContent='待て…'});at+=1300+Math.random()*1300}
   later(at,()=>{on=1;t0=performance.now();pad.className='pad go';pad.textContent='今!'});
   pad.onpointerdown=()=>{if(over)return;over=1;ids.forEach(clearTimeout);
-   if(!on){pad.textContent='フライング';fin(k,9999,'フライング')}else{const d=performance.now()-t0;pad.textContent=Math.round(d)+'ms';fin(k,d,Math.round(d)+'ms')}}})},
- dummy(k){
+   if(!on){pad.textContent='フライング';wfin(done,{score:9999,label:'フライング'})}else{const d=performance.now()-t0;pad.textContent=Math.round(d)+'ms';wfin(done,{score:d,label:Math.round(d)+'ms'})}};
+ })},
+ dummy:(p,done)=>{
   const cells=[...Array(5).fill('乾'),...Array.from({length:15},()=>pick(['干','幹','朝','乞','千','午']))].sort(()=>Math.random()-.5);
-  go(`<h2>「乾」を5個タップ</h2><p id=st class=muted>残り 5</p><div class=grid>${cells.map((c,i)=>`<button id="c${i}">${c}</button>`).join('')}</div><div id=res></div>`,()=>{
+  render(`<h2>「乾」を5個タップ</h2><p id=st class=muted>残り 5</p><div class=grid>${cells.map((c,i)=>`<button id="c${i}">${c}</button>`).join('')}</div><div id=res></div>`,()=>{
    const t0=performance.now();let left=5,pen=0;
    cells.forEach((c,i)=>{const b=$('#c'+i);b.onclick=()=>{
     if(c==='乾'){b.classList.add('off');b.onclick=null;left--;$('#st').textContent='残り '+left;
-     if(!left){const el=performance.now()-t0+pen;fin(k,el,(el/1000).toFixed(2)+'秒')}}
+     if(!left){const el=performance.now()-t0+pen;wfin(done,{score:el,label:(el/1000).toFixed(2)+'秒'})}}
     else{pen+=1500;b.classList.add('x');setTimeout(()=>b.classList.remove('x'),250)}}});
-  })}
+  });
+ }
 };
+function runW(name,params,done){
+  if(window.__auto){setTimeout(()=>done(window.__auto(name,params)),250);return}
+  WID[name](params,done);
+}
+/* ask player i to run a widget. Offline it runs here; online it runs on i's phone. */
+function askW(i,name,params,cb,wait){
+  if(!NET.on){render('');return runW(name,params,cb)}
+  netShow(i,'',{w:{name,params},cb,wait});
+}
 
 /* ---- hub menu ---- */
 const GAMES=[
@@ -309,7 +349,7 @@ const GAMES=[
  ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2]]],
  ['アクション',[['g20','ドクロ・インベーダー','協力シューティング(結果が反映される)',1]]],
  ['その他',[['mis','ミッション','秘密の指令',2],['g3','幕間ミニゲーム','サクッと',2],['rand','おまかせ','迷ったらこれ',2]]]];
-const menu=()=>GAMES.map(([t,a])=>`<p class=k>${t}</p><div class=row>${a.filter(x=>N()>=x[3]).map(x=>`<button class="${x[0]==='g1'?'':x[0]==='mis'?'grn':'alt'}" data-act=${x[0]}>${x[1]}<span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('');
+const menu=()=>GAMES.map(([t,a])=>`<p class=k>${t}</p><div class=row>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="${x[0]==='g1'?'':x[0]==='mis'?'grn':'alt'}" data-act=${x[0]}>${x[1]}<span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('');
 
 /* ---- dice bluff ---- */
 function dice(){
@@ -324,7 +364,7 @@ const minBid=b=>!b?{q:1,f:1}:b.f<6?{q:b.q,f:b.f+1}:{q:b.q+1,f:1};
 const bidOk=()=>{const g=S.g,b=g.bid,s=g.sel;return s.q<=N()*g.D&&(!b||s.q>b.q||(s.q===b.q&&s.f>b.f))};
 function diceTurn(){
   const g=S.g,T=N()*g.D;if(!g.sel)g.sel=minBid(g.bid);g.sel.q=Math.min(g.sel.q,T);const ok=bidOk();
-  go(`<p class=k>${nm(g.turn)}の番</p><div class=card><p>あなたのダイス</p><div class=big style="font-size:48px;padding:6px 0">${g.dice[g.turn].join(' ')}</div></div>
+  gop(g.turn,`<p class=k>${nm(g.turn)}の番</p><div class=card><p>あなたのダイス</p><div class=big style="font-size:48px;padding:6px 0">${g.dice[g.turn].join(' ')}</div></div>
   <p>${g.bid?`現在の宣言: <b class=win>${nm(g.bid.by)}「${g.bid.f}が${g.bid.q}個」</b>(全${T}個中)`:`まだ宣言なし(全${T}個)`}</p>
   <div class=card><p>あなたの宣言</p><div class=row style="align-items:center;flex-wrap:nowrap"><button class=alt data-act=dq data-d=-1>−</button><b style="text-align:center;font:400 26px var(--display)">${g.sel.f}が${g.sel.q}個</b><button class=alt data-act=dq data-d=1>＋</button></div>
   <div class=row style="flex-wrap:nowrap">${[1,2,3,4,5,6].map(f=>`<button class="alt ${f===g.sel.f?'sel':''}" data-act=df data-f=${f}>${f}</button>`).join('')}</div>
@@ -380,6 +420,18 @@ function bombRun(){
 function boom(){
   try{navigator.vibrate&&navigator.vibrate([200,80,300])}catch(e){}beep(120,500);
   go(`<h1 class=lose>ドカン!</h1><p>爆発したとき、スマホを持っていた人は?</p><div class=row>${S.players.map((_,i)=>`<button class=red data-act=bhit data-i=${i}>${nm(i)}</button>`).join('')}</div>`);
+}
+
+/* online: the bomb lives on one phone at a time; the holder passes it to someone else, the host keeps the fuse */
+function bombNetRun(){
+  const g=S.g;g.fuse=(window.__fuse)||g.fuse;g.t0=performance.now();clearTimeout(NET.bt);
+  NET.bt=setTimeout(()=>{const h=g.holder;try{navigator.vibrate&&navigator.vibrate([200,80,300])}catch(e){}drink(h,1,'爆弾が爆発');go(`<h1 class=lose>ドカン!</h1><p>${nm(h)}が持っていた。ひと口。</p>${nextBtn()}`);S.cb=done},g.fuse);
+  bombHold(Math.random()*N()|0);
+}
+function bombHold(i){
+  const g=S.g;g.holder=i;
+  const remain=Math.max(0,g.fuse-(performance.now()-g.t0));
+  netShow(i,'',{w:{name:'bombpass',params:{cat:g.cat,remain,total:g.fuse,targets:S.players.map((p,k)=>({k,name:p.name})).filter(x=>x.k!==i)}},cb:res=>bombHold(+res.to),wait:`<p class=k>爆弾リレー</p><h2>爆弾は ${nm(i)} が持っている</h2><p class=muted>お題: ${g.cat}</p>`});
 }
 
 /* ---- who is it ---- */
@@ -455,17 +507,182 @@ function end(){
   <button data-act=back class=alt>ゲームに戻る</button><button data-act=reset>新しく始める</button>`);
 }
 
+/* ================= online mode: each person plays on their own phone =================
+   Host-authoritative: the host phone runs the game exactly as offline. Screens go out over a public MQTT relay:
+   public ones to everybody, secret ones only to the one player's phone (everyone else sees "◯◯が操作中").
+   Taps come back to the host, which checks who may press what. */
+const NET={on:false,host:false,room:null,code:'',phase:'',ep:0,seq:0,roster:[],me:-1,cur:null,proxy:new Set(),last:{all:null,priv:null},shownKey:'',err:''};
+function mqttRoom(){
+  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+  return{join:name=>new Promise((resolve,reject)=>{
+    const id=Math.random().toString(36).slice(2,10),base='dokuro-saloon-bar/'+name+'/',state=new Map(),hs=new Set(),cs=[],subs=new Map(),seen=new Set();
+    let done=false,cur={},tp=0,failed=0,lastErr='',to=0,hb=0;
+    const fire=()=>hs.forEach(h=>{try{h({})}catch(e){}});
+    const push=()=>{const pl=JSON.stringify({p:cur,t:Date.now()});cs.forEach(o=>{if(o.up)try{o.m.publish(base+'p/'+id,pl,{retain:true,qos:0})}catch(e){}})};
+    const bad=e=>{lastErr=(e&&e.message)||String(e);if(!done&&++failed>=BROKERS.length){done=true;clearTimeout(to);reject(new Error(lastErr))}};
+    const api={
+      id,
+      peers:()=>[...state].map(([p,x])=>({peer:p,sameTab:p===id,isMe:p===id,presence:x.presence,updatedAt:x.upd})),
+      presence:async patch=>{
+        cur={...cur};for(const [k,v] of Object.entries(patch)){if(v===null)delete cur[k];else cur[k]=v}
+        state.set(id,{presence:cur,upd:Date.now()});
+        if(!tp)tp=setTimeout(()=>{tp=0;push()},100);
+        fire();
+      },
+      onPeers:h=>{hs.add(h);setTimeout(()=>h({}),1);return()=>hs.delete(h)},
+      connected:()=>cs.some(o=>o.up),
+      sub:(suffix,h)=>{if(!subs.has(suffix))subs.set(suffix,new Set());subs.get(suffix).add(h);cs.forEach(o=>{if(o.up)try{o.m.subscribe(base+suffix,{qos:1})}catch(e){}})},
+      pub:(suffix,obj,retain)=>{obj.mid=obj.mid||id+'.'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);const pl=JSON.stringify(obj);cs.forEach(o=>{if(o.up)try{o.m.publish(base+suffix,pl,{retain:!!retain,qos:1})}catch(e){}})},
+      clear:suffix=>cs.forEach(o=>{if(o.up)try{o.m.publish(base+suffix,'',{retain:true,qos:1})}catch(e){}}),
+      leave:async()=>{clearInterval(hb);clearTimeout(tp);cs.forEach(o=>{try{o.m.publish(base+'p/'+id,'',{retain:true});o.m.end(true)}catch(e){}})}
+    };
+    BROKERS.forEach((url,i)=>{
+      const o={m:null,up:false};cs.push(o);
+      try{
+        const m=o.m=mqtt.connect(url,{clientId:'dkb_'+id+'_'+i,clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:20,will:{topic:base+'p/'+id,payload:'',retain:true,qos:0}});
+        m.on('connect',()=>{m.subscribe(base+'p/+',{qos:0},err=>{
+          if(err)return bad(err);
+          subs.forEach((_,suffix)=>m.subscribe(base+suffix,{qos:1}));
+          o.up=true;state.set(id,{presence:cur,upd:Date.now()});push();
+          if(!done){done=true;clearTimeout(to);resolve(api)}fire()})});
+        m.on('close',()=>{o.up=false;fire()});
+        m.on('error',bad);
+        m.on('message',(topic,buf)=>{
+          const rest=topic.slice(base.length);
+          if(rest.startsWith('p/')){const pid=rest.slice(2);if(pid===id)return;
+            if(!buf.length){if(state.delete(pid))fire();return}
+            try{const m2=JSON.parse(buf.toString());state.set(pid,{presence:m2.p||{},upd:Date.now()});fire()}catch(e){}return}
+          if(!buf.length)return;
+          let msg;try{msg=JSON.parse(buf.toString())}catch(e){return}
+          if(msg.mid){if(seen.has(msg.mid))return;seen.add(msg.mid);if(seen.size>3000)seen.clear()}
+          const hsub=subs.get(rest);if(hsub)hsub.forEach(h=>{try{h(msg)}catch(e){}});
+        });
+      }catch(e){bad(e)}
+    });
+    to=setTimeout(()=>{if(!done){done=true;reject(new Error(lastErr||'timeout'))}},10000);
+    hb=setInterval(()=>{push();const now=Date.now();let ch=false;state.forEach((x,k)=>{if(k!==id&&now-x.upd>12000){state.delete(k);ch=true}});if(ch)fire()},3000);
+  })};
+}
+const pidOf=i=>NET.roster[i];
+const waitHtml=i=>`<p class=k>オンライン</p><h2>${nm(i)}が操作中</h2><p class=muted>この画面は本人のスマホにだけ表示される。しばらく待つ。</p>`;
+/* host: publish a screen. aud = 'all' | player index | 'each' (every phone gets its own part) */
+function netShow(aud,html,o={}){
+  const seq=++NET.seq,mk=m=>({ep:NET.ep,seq,roster:NET.roster,...m}),room=NET.room;
+  const wait=o.wait||(typeof aud==='number'?waitHtml(aud):'');
+  const cur=NET.cur={seq,aud,html,w:o.w||null,cb:o.cb||null,each:o.each||null,done:new Set(),res:{},expect:(o.expect||(o.each?Object.keys(o.each).filter(k=>o.each[k].w).map(Number):null)),wait};
+  if(aud==='all')room.pub('s/all',mk({aud,html}),true);
+  else if(aud==='each'){room.pub('s/all',mk({aud,html:wait}),true);Object.keys(o.each).forEach(i=>room.pub('s/'+pidOf(i),mk({aud,html:o.each[i].html||'',w:o.each[i].w||null}),true))}
+  else{room.pub('s/all',mk({aud,html:wait}),true);room.pub('s/'+pidOf(aud),mk({aud,html,w:o.w||null}),true)}
+  netHostView();
+}
+const netShowEach=(each,o)=>netShow('each','',{each,wait:o.wait,cb:o.cb,expect:o.expect});
+function netHostView(){
+  const c=NET.cur,i=NET.me;
+  if(c.aud==='each'&&c.each[i])return showMsg({html:c.each[i].html||'',w:c.each[i].w});
+  if(c.aud==='all'||c.aud===i||(typeof c.aud==='number'&&NET.proxy.has(c.aud)))return showMsg({html:c.html,w:c.w});
+  showMsg({html:c.wait+(typeof c.aud==='number'?`<button class="alt sm" data-act=proxy data-i=${c.aud}>代行する(このスマホで操作)</button>`:'')});
+}
+function showMsg(m){
+  if(m.w){render(m.html||'');runW(m.w.name,m.w.params,res=>netDone(res))}
+  else render(m.html);
+}
+function netDone(res){
+  if(NET.host){const c=NET.cur,as=(typeof c.aud==='number'&&NET.proxy.has(c.aud))?c.aud:NET.me;netHandle(pidOf(0),{ep:NET.ep,sid:c.seq,act:'wdone',data:res},as)}
+  else NET.room.pub('a/host',{from:NET.room.id,ep:NET.ep,sid:NET.cur.seq,act:'wdone',data:res});
+}
+const OWN={mview:'i',mdone:'i',macc:'i',card:'i',mok:'i'};
+function allowed(act,i,d){
+  if(act in OWN)return +d[OWN[act]]===i;
+  if(act==='nom')return i===S.g.win;
+  if(act==='dnom')return i===S.g.a;
+  if(act==='cardt')return !!S.use&&i===S.use.i;
+  if(act==='matgt'||act==='mguess')return i===S.acc;
+  if(act==='end'||act==='reset'||act==='netlobby')return i===0;
+  return true;
+}
+function netWDone(i,res){
+  const c=NET.cur;
+  if(c.aud==='each'){if(!c.each[i]||!c.each[i].w||c.done.has(i))return;c.done.add(i);c.res[i]=res;if((c.expect||[]).every(k=>c.done.has(k))){const cb=c.cb;c.cb=null;cb&&cb(c.res)}return}
+  if(c.aud===i&&c.cb){const cb=c.cb;c.cb=null;cb(res)}
+}
+function netHandle(pid,m,as){
+  const c=NET.cur;if(!c||m.ep!==NET.ep||m.sid!==c.seq)return;
+  const i=as!==undefined?as:NET.roster.indexOf(pid);if(i<0)return;
+  if(m.act==='wdone')return netWDone(i,m.data);
+  if(m.act==='proxy'){if(i!==0)return;NET.proxy.add(+m.data.i);return netHostView()}
+  if(c.aud==='each')return;
+  if(typeof c.aud==='number'&&c.aud!==i)return;
+  if(!allowed(m.act,i,m.data||{}))return;
+  const f=A[m.act];if(f)f({dataset:m.data||{}});
+}
+function netClick(act,data){
+  if(NET.host){const c=NET.cur,as=(typeof c.aud==='number'&&NET.proxy.has(c.aud))?c.aud:NET.me;netHandle(pidOf(0),{ep:NET.ep,sid:c.seq,act,data},as)}
+  else if(NET.cur)NET.room.pub('a/host',{from:NET.room.id,ep:NET.ep,sid:NET.cur.seq,act,data});
+}
+/* client: pick the newest screen addressed to me, else the public one */
+function netIn(kind,m){
+  if(!m||m.ep===undefined||NET.host)return;
+  if(m.ep<NET.ep)return;
+  if(m.ep>NET.ep){NET.ep=m.ep;NET.last={all:null,priv:null};NET.shownKey=''}
+  NET.last[kind]=m;
+  const a=NET.last.all,p=NET.last.priv;let pk=a;if(p&&(!a||p.seq>=a.seq))pk=p;if(!pk)return;
+  const key=pk.seq+(pk===p?'p':'a');if(NET.shownKey===key)return;
+  if(pk.kind==='lobby'){NET.shownKey=key;NET.on=false;NET.phase='lobby';return renderNetLobby()}
+  if(!NET.on){if(!(pk.roster&&pk.roster.includes(NET.room.id)))return;NET.on=true;NET.host=false;NET.phase='game'}
+  NET.shownKey=key;NET.roster=pk.roster;NET.me=pk.roster.indexOf(NET.room.id);NET.cur={seq:pk.seq};
+  showMsg(pk);
+}
+/* ---- lobby ---- */
+function netMenu(){
+  render(`<h1>オンライン</h1><p class=muted>各自のスマホで遊ぶ。全員が同じ部屋コードに入る。</p>
+  <div class=card><h3>名前</h3><input id=nnm maxlength=8 placeholder="ニックネーム" value="${esc(localStorage.getItem('dk_name')||'')}" autocomplete=off></div>
+  <button data-act=netmk>部屋を作る</button>
+  <div class=row><input id=ncd maxlength=4 placeholder="部屋コード" autocomplete=off style="flex:1 1 120px"><button data-act=netjn style="flex:1 1 90px">入る</button></div>
+  <button class=alt data-act=netback>戻る</button>`);
+}
+function netName(){const e=$('#nnm');let n=e?e.value.trim().slice(0,8):'';if(!n)n='プレイヤー'+(10+Math.random()*89|0);try{localStorage.setItem('dk_name',n)}catch(_){}return n}
+async function netEnter(code,host,name){
+  if(!window.mqtt)return;
+  try{NET.room=await mqttRoom().join('bar-'+code)}catch(e){render($('#app').innerHTML+`<p class=muted>入室に失敗しました: ${esc((e&&e.message)||e)}</p>`);return}
+  NET.code=code;NET.host=host;NET.phase='lobby';NET.on=false;NET.ep=0;NET.seq=0;NET.last={all:null,priv:null};NET.shownKey='';NET.proxy=new Set();
+  NET.room.presence({bar:1,name,t:Date.now(),host});
+  if(host){NET.room.sub('a/host',m=>netHandle(m.from,m));NET.room.clear('s/all')}
+  else{NET.room.sub('s/all',m=>netIn('all',m));NET.room.sub('s/'+NET.room.id,m=>netIn('priv',m))}
+  NET.room.onPeers(()=>{if(NET.phase==='lobby'&&!NET.on)renderNetLobby()});
+  renderNetLobby();
+}
+function renderNetLobby(){
+  if(!NET.room)return;
+  const ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t);
+  render(`<p class=k>部屋コード</p><div class=big style="font-size:48px;letter-spacing:.2em;color:var(--amber)">${esc(NET.code.toUpperCase())}</div><p class=muted>友だちにこのコードを伝えて、同じページから「オンライン → 入る」。</p>
+  <div class=card>${ps.map(p=>`<div class=pl><span>${esc(p.presence.name||'?')}${p.presence.host?'(幹事)':''}</span><span>${p.sameTab?'あなた':''}</span></div>`).join('')||'<p class=muted>接続中…</p>'}</div>
+  ${NET.host?`<button data-act=netstart ${ps.length<2?'disabled':''}>${ps.length<2?'2人以上で開始できる':'この人数で始める'}</button>`:'<p class=muted>幹事が始めるまで待機…</p>'}
+  <p class=muted>接続:${NET.room.connected()?'OK':'NG'} / ${ps.length}人</p><button class=alt data-act=netleave>部屋を出る</button>`);
+}
+async function netLeave(){
+  clearInterval(NET.lt);try{clearTimeout(NET.bt);NET.room&&await NET.room.leave()}catch(e){}
+  NET.room=null;NET.on=false;NET.host=false;NET.phase='';setup();
+}
+
 /* ---- events ---- */
 const A={
  setn(e){readNames();S.n=+e.dataset.i;setup()},
  start(){readNames();try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
   S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
- g1(){liar()},g20(){openInv()},resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},
- rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){setup()},
+ g1(){liar()},g20(){openInv()},
+ netmenu(){netMenu()},netback(){setup()},netleave(){netLeave()},
+ async netmk(){const nm_=netName(),c=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');await netEnter(c,true,nm_)},
+ async netjn(){const nm_=netName(),c=(($('#ncd')||{}).value||'').trim().toLowerCase();if(c.length!==4)return;await netEnter(c,false,nm_)},
+ netstart(){const ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t);if(ps.length<2)return;
+  NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
+  NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
+ netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);renderNetLobby()},
+ resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},
+ rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
  cb(){S.cb&&S.cb()},
  vote(e){S.g.votes.push([S.g.voters[S.g.k2],+e.dataset.v]);voteLoop(S.g.k2+1)},
  nom(e){drink(+e.dataset.i,S.g.nomN,'嘘つきグラスで指名された(×'+S.g.nomN+')');done()},
- tolie(){const g=S.g;g.t=false;g.sw=true;g.lvl[0]=3;g.words[0]=[...WORDS].sort(()=>Math.random()-.5).slice(0,3);g.ans=0;g.ansText='嘘';g.liar=g.ws[0];g.win=g.ws[0];g.nomN=3;go(cardHtml(0))},
+ tolie(){const g=S.g;g.t=false;g.sw=true;g.lvl[0]=3;g.words[0]=[...WORDS].sort(()=>Math.random()-.5).slice(0,3);g.ans=0;g.ansText='嘘';g.liar=g.ws[0];g.win=g.ws[0];g.nomN=3;gop(g.ws[0],cardHtml(0))},
  dq(e){const g=S.g,T=N()*g.D;g.sel.q=Math.max(1,Math.min(T,g.sel.q+ +e.dataset.d));diceTurn()},
  df(e){S.g.sel.f=+e.dataset.f;diceTurn()},
  dbid(){const g=S.g;if(!bidOk())return;g.bid={q:g.sel.q,f:g.sel.f,by:g.turn};g.turn=(g.turn+1)%N();g.sel=null;diceTurn0()},
@@ -475,7 +692,7 @@ const A={
   <p class=lose>${nm(loser)}が×${amt}飲む${bidderOk&&cnt===b.q?'(ぴったりで倍)':''}</p>${nextBtn()}`);S.cb=done},
  ito(e){S.g.ord.push(+e.dataset.i);itoOrder()},
  itoundo(){S.g.ord.pop();itoOrder()},
- bstart(){bombRun()},
+ bstart(){NET.on?bombNetRun():bombRun()},
  bhit(e){drink(+e.dataset.i,1,'爆弾が爆発');done()},
  wv(e){S.g.votes.push([S.g.k,+e.dataset.t]);whoLoop(S.g.k+1)},
  np(e){S.g.picks.push(+e.dataset.v);numLoop(S.g.k+1)},
@@ -489,23 +706,27 @@ const A={
  mview(e){const i=+e.dataset.i;pass(i,'ミッション確認',()=>{S.cb=misMenu;go(`<h2>あなたの指令</h2><div class=card><h3>${S.players[i].mission}</h3></div><p class=muted>悟られずに達成しよう</p>${nextBtn('伏せて戻る')}`)})},
  mdone(e){const i=+e.dataset.i;pass(i,'達成報告',()=>go(`<h2>達成した?</h2><div class=card><h3>${S.players[i].mission}</h3></div><button class=grn data-act=mok data-i=${i}>達成した</button><button class=alt data-act=mis>まだ</button>`))},
  mok(e){const p=S.players[+e.dataset.i],c=pick(CARDS);p.cards.push(c);S.log.push(p.name+': ミッション達成');newMis(p);S.cb=misMenu;go(`<h2>達成!</h2><p class=win>カード「${c}」を獲得。新しい指令は「確認」から。</p>${nextBtn()}`)},
- macc(e){S.acc=+e.dataset.i;go(`<h2>${nm(S.acc)}の告発: 誰を?</h2><div class=row>${S.players.map((_,i)=>i).filter(i=>i!==S.acc).map(i=>`<button class=red data-act=matgt data-t=${i}>${nm(i)}</button>`).join('')}</div><button class=alt data-act=mis>やめる</button>`)},
- matgt(e){S.tgt=+e.dataset.t;go(`<h2>${nm(S.tgt)}の指令は?</h2><div class=mis>${MIS.map((m,i)=>`<button class=alt data-act=mguess data-m=${i}>${m}</button>`).join('')}</div>`)},
+ macc(e){S.acc=+e.dataset.i;gop(S.acc,`<h2>${nm(S.acc)}の告発: 誰を?</h2><div class=row>${S.players.map((_,i)=>i).filter(i=>i!==S.acc).map(i=>`<button class=red data-act=matgt data-t=${i}>${nm(i)}</button>`).join('')}</div><button class=alt data-act=mis>やめる</button>`)},
+ matgt(e){S.tgt=+e.dataset.t;gop(S.acc,`<h2>${nm(S.tgt)}の指令は?</h2><div class=mis>${MIS.map((m,i)=>`<button class=alt data-act=mguess data-m=${i}>${m}</button>`).join('')}</div>`)},
  mguess(e){const a=S.players[S.acc],t=S.players[S.tgt],hit=t.mission===MIS[+e.dataset.m];
   if(hit){drink(S.tgt,2,'ミッションを告発された');const c=pick(CARDS);a.cards.push(c);newMis(t);S.log.push(a.name+'が告発成功');go(`<h2 class=win>告発成功</h2><p>${nm(S.tgt)}は×2飲む。${nm(S.acc)}はカード「${c}」を獲得。</p>${nextBtn()}`)}
   else{drink(S.acc,1,'ミッション告発に失敗');go(`<h2 class=lose>ハズレ</h2><p>${nm(S.acc)}がひと口</p>${nextBtn()}`)}
   S.cb=misMenu},
  card(e){const p=S.players[+e.dataset.i],k=+e.dataset.k,c=p.cards[k];S.use={i:+e.dataset.i,k};
   if(c==='免除'){p.cards.splice(k,1);p.lives=Math.min(3,p.lives+1);p.drinks=Math.max(0,p.drinks-1);S.log.push(p.name+': 免除カード');return hub()}
-  go(`<h2>${c}: 誰に?</h2><div class=row>${S.players.map((_,i)=>i).filter(i=>i!==S.use.i).map(i=>`<button class=red data-act=cardt data-t=${i}>${nm(i)}</button>`).join('')}</div><button class=alt data-act=back>やめる</button>`)},
+  gop(S.use.i,`<h2>${c}: 誰に?</h2><div class=row>${S.players.map((_,i)=>i).filter(i=>i!==S.use.i).map(i=>`<button class=red data-act=cardt data-t=${i}>${nm(i)}</button>`).join('')}</div><button class=alt data-act=back>やめる</button>`)},
  cardt(e){const p=S.players[S.use.i],c=p.cards.splice(S.use.k,1)[0],t=+e.dataset.t;
   if(c==='身代わり'){p.lives=Math.min(3,p.lives+1);p.drinks=Math.max(0,p.drinks-1)}
   drink(t,1,p.name+'の'+c+'カード');hub()}
 };
-$('#app').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&A[b.dataset.act])A[b.dataset.act](b)});
+$('#app').addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
+  if(NET.on)return netClick(act,{...b.dataset});
+  if(A[act])A[act](b);
+});
 (()=>{
   const back=new URLSearchParams(location.search).get('back')==='1';
   if(back&&load()){try{history.replaceState(null,'',location.pathname)}catch(e){}importInv();hub()}else setup();
 })();
-window.__bar={S,A};
+window.__bar={S,A,NET,WID};
 </script>
