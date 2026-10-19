@@ -30,7 +30,7 @@
 :root{--ink:#17120f;--panel:#231b16;--line:#3a2d24;--fg:#f3e9dc;--mute:#a89886;--amber:#f0a63a;--red:#e0553a;--green:#5fae7a;--blue:#4aa3d8;
 --display:'Dela Gothic One','Hiragino Sans','Yu Gothic',sans-serif;--body:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;color-scheme:dark}
 html,body{height:100%}
-body{background:var(--ink);color:var(--fg);font:500 16px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;-webkit-user-select:none;user-select:none}
+body{background:var(--ink);background-image:linear-gradient(180deg,rgba(18,13,10,.62),rgba(18,13,10,.88)),url("tavern-bg.svg");background-size:cover;background-position:center;background-attachment:fixed;color:var(--fg);font:500 16px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;-webkit-user-select:none;user-select:none}
 #app{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:16px;min-height:100%}
 h1{font-family:var(--display);font-weight:400}
 h2,h3{font-family:var(--body);font-weight:700}
@@ -43,8 +43,18 @@ button.alt{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
 button.red{background:var(--red);color:#fff} button.grn{background:var(--green);color:#10200f}
 button.sel{outline:3px solid var(--fg)}
 button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+button{box-shadow:0 3px 0 rgba(0,0,0,.22);transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}
+button:hover{filter:brightness(1.07)}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.card h3{letter-spacing:.01em}
+.k{text-shadow:0 0 18px rgba(240,166,58,.18)}
+.poster-frame{overflow:hidden;border-radius:14px;border:1px solid #6b4b2f;background:#17120f;box-shadow:0 14px 32px rgba(0,0,0,.3)}
+.poster-preview{display:block;width:100%;height:auto}
+.poster-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.poster-actions button{min-width:0}
+@media (prefers-reduced-motion:reduce){button{transition:none}}
 .row{display:flex;flex-wrap:wrap;gap:8px} .row>*{flex:1 1 120px;min-width:0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card{background:linear-gradient(145deg,rgba(48,34,24,.96),rgba(29,22,17,.98));border:1px solid #58402c;border-radius:15px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 26px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,220,160,.045)}
 input{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0;box-sizing:border-box;-webkit-user-select:text;user-select:text}
 .pl{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)} .pl:last-child{border:0}
 .dots{display:inline-flex;gap:5px}.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--amber)}.dots i.on{background:var(--amber)}
@@ -620,13 +630,50 @@ function kingOpen(){
 }
 
 /* ---- end ---- */
+function buildPosterSvg(){
+  const players=S.players||[],logs=S.log||[],rounds=Math.max(0,S.round||0);
+  const values=players.map(p=>Math.max(0,Number(p.drinks)||0));
+  const max=values.length?Math.max(...values):0,min=values.length?Math.min(...values):0;
+  const eventLeaders=players.filter((p,i)=>values[i]===max).map(p=>p.name);
+  const lucky=players.filter((p,i)=>values[i]===min).map(p=>p.name);
+  const date=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const x=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const roster=players.map((p,i)=>{
+    const val=values[i],badge=val===max&&val===min?'ALL STAR':val===max?'波乱の主役':val===min?'幸運の客人':'PLAYERS';
+    const y=682+i*61;
+    return '<g><rect x="86" y="'+y+'" width="788" height="51" rx="12" fill="'+(i%2?'#241a13':'#2c2017')+'" stroke="#74502e" stroke-opacity=".62"/><text x="112" y="'+(y+32)+'" font-family="sans-serif" font-size="24" fill="#9f8a73">'+String(i+1).padStart(2,'0')+'</text><text x="169" y="'+(y+32)+'" font-family="sans-serif" font-size="26" font-weight="700" fill="#f3e9dc">'+x(p.name)+'</text><text x="837" y="'+(y+32)+'" text-anchor="end" font-family="sans-serif" font-size="14" letter-spacing="1" fill="#f0a63a">'+badge+'</text></g>';
+  }).join('');
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1280" viewBox="0 0 960 1280"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#20150f"/><stop offset=".55" stop-color="#17120f"/><stop offset="1" stop-color="#100c0a"/></linearGradient><radialGradient id="halo"><stop stop-color="#b66a26" stop-opacity=".34"/><stop offset="1" stop-color="#b66a26" stop-opacity="0"/></radialGradient><pattern id="grain" width="70" height="92" patternUnits="userSpaceOnUse"><path d="M18 0v92M52 0v92" stroke="#f0a63a" stroke-opacity=".035" stroke-width="2"/><path d="M0 37h70" stroke="#000" stroke-opacity=".17" stroke-width="4"/></pattern></defs><rect width="960" height="1280" fill="url(#bg)"/><ellipse cx="480" cy="185" rx="470" ry="330" fill="url(#halo)"/><rect width="960" height="1280" fill="url(#grain)"/><path d="M0 55H960M0 76H960M0 1200H960" stroke="#6a4529" stroke-width="9" opacity=".45"/><rect x="24" y="24" width="912" height="1232" rx="12" fill="none" stroke="#9a6b37" stroke-width="2"/><rect x="38" y="38" width="884" height="1204" rx="9" fill="none" stroke="#9a6b37" stroke-opacity=".35"/><g transform="translate(480 127)"><ellipse rx="40" ry="43" fill="#f0a63a"/><rect x="-27" y="27" width="54" height="24" rx="5" fill="#f0a63a"/><ellipse cx="-15" cy="-3" rx="9" ry="12" fill="#17120f"/><ellipse cx="15" cy="-3" rx="9" ry="12" fill="#17120f"/><path d="M0 7l-6 12h12z" fill="#17120f"/><path d="M-15 33v12m10-12v12M5 33v12M15 33v12" stroke="#17120f" stroke-width="4"/></g><text x="480" y="220" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" letter-spacing="7" fill="#f0a63a">DOKURO SALOON</text><text x="480" y="290" text-anchor="middle" font-family="sans-serif" font-size="59" font-weight="900" fill="#f3e9dc">今夜の戦績</text><text x="480" y="330" text-anchor="middle" font-family="sans-serif" font-size="18" letter-spacing="3" fill="#b6a08a">ONE NIGHT. ONE LEGEND.</text><text x="480" y="365" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#a89886">'+x(date)+'</text><g><rect x="72" y="400" width="256" height="120" rx="15" fill="#2a1e15" stroke="#80582e"/><rect x="352" y="400" width="256" height="120" rx="15" fill="#2a1e15" stroke="#80582e"/><rect x="632" y="400" width="256" height="120" rx="15" fill="#2a1e15" stroke="#80582e"/><text x="200" y="440" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#b7a087">仲間</text><text x="200" y="493" text-anchor="middle" font-family="sans-serif" font-size="43" font-weight="800" fill="#f0a63a">'+players.length+'<tspan font-size="20"> 人</tspan></text><text x="480" y="440" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#b7a087">プレイラウンド</text><text x="480" y="493" text-anchor="middle" font-family="sans-serif" font-size="43" font-weight="800" fill="#f0a63a">'+rounds+'</text><text x="760" y="440" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#b7a087">記録ログ</text><text x="760" y="493" text-anchor="middle" font-family="sans-serif" font-size="43" font-weight="800" fill="#f0a63a">'+logs.length+'</text></g><g><rect x="72" y="542" width="396" height="86" rx="14" fill="#342316" stroke="#b47a36" stroke-width="2"/><rect x="492" y="542" width="396" height="86" rx="14" fill="#201a15" stroke="#765536"/><text x="94" y="571" font-family="sans-serif" font-size="15" letter-spacing="1" fill="#c9a46e">TONIGHT\'S MVP</text><text x="94" y="605" font-family="sans-serif" font-size="23" font-weight="700" fill="#f3e9dc">'+x(eventLeaders.join('・')||'—')+'</text><text x="514" y="571" font-family="sans-serif" font-size="15" letter-spacing="1" fill="#b7a087">LUCKY GUEST</text><text x="514" y="605" font-family="sans-serif" font-size="23" font-weight="700" fill="#f3e9dc">'+x(lucky.join('・')||'—')+'</text></g><text x="88" y="661" font-family="sans-serif" font-size="17" letter-spacing="3" fill="#f0a63a">TONIGHT\'S CREW</text>'+roster+'<text x="480" y="1202" text-anchor="middle" font-family="sans-serif" font-size="16" letter-spacing="2" fill="#9f8972">GOOD STORIES. QUESTIONABLE DECISIONS. GREAT FRIENDS.</text><text x="480" y="1228" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#69513a">warabinbin.github.io/dokuro-saloon</text></svg>';
+}
+function posterDataUri(){return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(buildPosterSvg())}
+function savePosterImage(share){
+  const svg=buildPosterSvg(),img=new Image();
+  img.onload=()=>{
+    const canvas=document.createElement('canvas');canvas.width=960;canvas.height=1280;
+    const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,960,1280);
+    canvas.toBlob(async blob=>{
+      if(!blob){const a=document.createElement('a');a.href=posterDataUri();a.download='dokuro-saloon-poster.svg';a.click();return}
+      if(share&&navigator.share){
+        try{
+          const file=new File([blob],'dokuro-saloon-poster.png',{type:'image/png'});
+          if(!navigator.canShare||navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'今夜の戦績 | ドクロ酒場'});return}
+        }catch(e){if(e&&e.name==='AbortError')return}
+      }
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dokuro-saloon-poster.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    },'image/png');
+  };
+  img.onerror=()=>{const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dokuro-saloon-poster.svg';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)};
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
 function end(){
   S.inGame=false;
   const d=S.players.map(p=>p.drinks),mx=Math.max(...d),mn=Math.min(...d);
   const who=v=>S.players.filter(p=>p.drinks===v).map(p=>esc(p.name)).join('、');
-  go(`<h1>今夜の結果</h1><div class=card><p>戦犯(いちばん飲んだ)</p><h3 class=lose>${who(mx)} (${mx}回)</h3><p>MVP(いちばん飲まなかった)</p><h3 class=win>${who(mn)} (${mn}回)</h3></div>
-  <div class=card>${S.players.map(p=>`<div class=pl><span>${esc(p.name)}</span><span>${p.drinks}回</span></div>`).join('')}</div>
-  <div class=card><h3>ログ</h3><ol>${S.log.map(l=>`<li class=muted>${esc(l)}</li>`).join('')||'<li class=muted>なし</li>'}</ol></div>
+  go(`<h1>今夜の結果</h1><div class=card><p>最多イベント回数</p><h3 class=lose>${who(mx)} (${mx}回)</h3><p>幸運の客人</p><h3 class=win>${who(mn)} (${mn}回)</h3></div>
+  <div class=card><h3>今夜のメンバー</h3>${S.players.map(p=>`<div class=pl><span>${esc(p.name)}</span><span>${p.drinks}回</span></div>`).join('')}</div>
+  <div class=card><h3>プレイログ</h3><ol>${S.log.map(l=>`<li class=muted>${esc(l)}</li>`).join('')||'<li class=muted>まだ記録なし</li>'}</ol></div>
+  <p class=k>今夜の戦績ポスター</p><p class=muted>この飲み会の思い出を、画像にして持ち帰ろう。</p><div class=poster-frame><img class=poster-preview alt="今夜の戦績ポスター" src="${posterDataUri()}"></div>
+  <div class=poster-actions><button data-act=savePoster>PNGで保存</button><button class=alt data-act=sharePoster>共有する</button></div>
   <button data-act=back class=alt>ゲームに戻る</button><button data-act=reset>新しく始める</button>`);
 }
 
@@ -882,6 +929,8 @@ $('#mok2').addEventListener('click',abortGame);
 ['g1','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
 $('#app').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
+  if(act==='savePoster'){savePosterImage(false);return}
+  if(act==='sharePoster'){savePosterImage(true);return}
   if(NET.on)return netClick(act,{...b.dataset});
   if(A[act])A[act](b);
 });
