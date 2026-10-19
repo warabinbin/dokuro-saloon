@@ -42,10 +42,14 @@ button.sm{min-height:36px;font-size:14px;padding:4px 10px;flex:0 0 auto}
 .sub{display:block;font-weight:500;font-size:12px;opacity:.8}
 button[disabled]{opacity:.4;cursor:not-allowed}
 ol{margin:0;padding-left:1.4em}
+#gbar{max-width:440px;margin:0 auto 8px;display:flex}#gbar[hidden]{display:none}
+#modal{position:fixed;inset:0;background:rgba(10,8,6,.8);display:grid;place-items:center;padding:24px;z-index:20}#modal[hidden]{display:none}#modal .card{max-width:360px;width:100%}
 @media (prefers-reduced-motion:no-preference){#app>*{animation:in .18s ease-out}@keyframes in{from{opacity:.4;transform:translateY(6px)}}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+<div id="gbar" hidden><button class="alt sm" id="gback">← ゲーム選択に戻る</button></div>
 <div id="app"></div>
+<div id="modal" hidden><div class="card"><h3>ゲームを中断する?</h3><p class=muted id="mtxt"></p><div class=row><button class=red id="mok2">中断して選択に戻る</button><button class=alt id="mno">続ける</button></div></div></div>
 <script>
 const $=s=>document.querySelector(s),pick=a=>a[Math.random()*a.length|0],clamp=(v,m=1)=>Math.max(-m,Math.min(m,v));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -53,7 +57,7 @@ const TOPICS=['最近いちばん恥ずかしかったこと','人生で一番�
 const EVENTS=['全員、利き手と反対の手でスマホを持つこと','最年少が1人指名して、ひと口飲ませる','全員で乾杯してから次へ','次の1ラウンド、語尾に「ござる」をつける','スマホを持つ人は立って操作する','いま一番酔ってそうな人が1人を指名して乾杯'];
 const S={players:[],names:['','','',''],n:4,level:1,round:0,log:[],g:null,cb:null,raf:0,evShown:-1,ev:'',narr:-1};
 const N=()=>S.players.length,nm=i=>esc(S.players[i].name);
-function render(html,after){cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;scrollTo(0,0);after&&after()}
+function render(html,after){cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
 /* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
 function go(html,after){if(!NET.on)return render(html,after);netShow(S.pi!=null?S.pi:'all',html)}
 function gop(i,html,after){if(!NET.on)return render(html,after);netShow(i,html)}
@@ -64,6 +68,7 @@ function pass(i,label,next){S.cb=next;if(NET.on){S.pi=i;try{next()}finally{S.pi=
 
 /* ---- setup ---- */
 function setup(){
+  S.inGame=false;
   const sv=savedInfo();
   const inputs=Array.from({length:S.n},(_,i)=>`<input id="n${i}" maxlength=8 placeholder="プレイヤー${i+1}" value="${esc(S.names[i]||'')}">`).join('');
   go(`<h1>ドクロ酒場</h1>${sv?`<button data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}<p class=muted>1台のスマホを回して遊ぶ試作版。飲めない人は水でOK。ライフが減る=ひと口。</p>
@@ -94,7 +99,7 @@ function readNames(){for(let i=0;i<S.n;i++){const e=$('#n'+i);if(e)S.names[i]=e.
 
 /* ---- hub ---- */
 function hub(){
-  save();
+  S.inGame=false;save();
   if(S.round>0&&S.round%5===0&&S.evShown!==S.round){S.evShown=S.round;S.ev=pick(EVENTS)}
   const ev=S.evShown===S.round&&S.round>0?`<div class=ev><b>ランダムイベント</b><br>${S.ev}</div>`:'';
   const note=S.note?`<div class=ev><b>インベーダーの結果</b><br>${esc(S.note)}</div>`:'';S.note='';
@@ -499,6 +504,7 @@ function kingOpen(){
 
 /* ---- end ---- */
 function end(){
+  S.inGame=false;
   const d=S.players.map(p=>p.drinks),mx=Math.max(...d),mn=Math.min(...d);
   const who=v=>S.players.filter(p=>p.drinks===v).map(p=>esc(p.name)).join('、');
   go(`<h1>今夜の結果</h1><div class=card><p>戦犯(いちばん飲んだ)</p><h3 class=lose>${who(mx)} (${mx}回)</h3><p>MVP(いちばん飲まなかった)</p><h3 class=win>${who(mn)} (${mn}回)</h3></div>
@@ -719,6 +725,14 @@ const A={
   if(c==='身代わり'){p.lives=Math.min(3,p.lives+1);p.drinks=Math.max(0,p.drinks-1)}
   drink(t,1,p.name+'の'+c+'カード');hub()}
 };
+function abortGame(){
+  $('#modal').hidden=true;clearTimeout(NET.bt);S.inGame=false;S.pi=null;
+  hub();
+}
+$('#gback').addEventListener('click',()=>{$('#mtxt').textContent=NET.on?'全員の画面がゲーム選択に戻る。ここまでの結果は残る。':'ここまでの結果は残る。ラウンドは進まない。';$('#modal').hidden=false});
+$('#mno').addEventListener('click',()=>{$('#modal').hidden=true});
+$('#mok2').addEventListener('click',abortGame);
+['g1','g3','g4','g5','g6','g7','g8','g9','g10','g11','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
 $('#app').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
   if(NET.on)return netClick(act,{...b.dataset});
