@@ -30,7 +30,7 @@
 :root{--ink:#17120f;--panel:#231b16;--line:#3a2d24;--fg:#f3e9dc;--mute:#a89886;--amber:#f0a63a;--red:#e0553a;--green:#5fae7a;--blue:#4aa3d8;
 --display:'Dela Gothic One','Hiragino Sans','Yu Gothic',sans-serif;--body:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;color-scheme:dark}
 html,body{height:100%}html{touch-action:manipulation;-webkit-tap-highlight-color:transparent}body{margin:0;box-sizing:border-box;display:flex;flex-direction:column}
-body{background:var(--ink);background-image:linear-gradient(180deg,rgba(18,13,10,.62),rgba(18,13,10,.88)),url("tavern-bg.svg");background-size:cover;background-position:center;background-attachment:fixed;color:var(--fg);font:500 16px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;-webkit-user-select:none;user-select:none}
+body{background:var(--ink);background-image:linear-gradient(180deg,rgba(18,13,10,.62),rgba(18,13,10,.88)),url("tavern-bg.svg");background-size:cover;background-position:center;background-attachment:fixed;color:var(--fg);font:500 16px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px));-webkit-user-select:none;user-select:none}
 #app{width:100%;max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:16px;flex:1 0 auto}
 h1{font-family:var(--display);font-weight:400}
 h2,h3{font-family:var(--body);font-weight:700}
@@ -95,7 +95,7 @@ canvas{max-width:400px}
 @media (prefers-reduced-motion:reduce){button,.quick-play .qp-ic{transition:none;animation:none!important}}
 /* game select: tiles */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tile{--t:#f0a63a;position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;min-height:96px;padding:12px 12px 12px;text-align:left;background:linear-gradient(160deg,color-mix(in srgb,var(--t) 26%,var(--panel)),var(--panel) 70%);color:var(--fg);border:1px solid color-mix(in srgb,var(--t) 55%,var(--line));border-radius:14px;overflow:hidden}
+.tile{--t:#f0a63a;background:var(--panel);border:1px solid var(--line);position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;min-height:96px;padding:12px 12px 12px;text-align:left;background:linear-gradient(160deg,color-mix(in srgb,var(--t) 26%,var(--panel)),var(--panel) 70%);color:var(--fg);border:1px solid color-mix(in srgb,var(--t) 55%,var(--line));border-radius:14px;overflow:hidden}
 .tile::after{content:"";position:absolute;right:-18px;top:-18px;width:64px;height:64px;border-radius:50%;background:var(--t);opacity:.16}
 .tile .ic{font-style:normal;font-size:30px;line-height:1.1;transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
 .tile b{font-size:16px;line-height:1.25}
@@ -116,7 +116,7 @@ canvas{max-width:400px}
 .stick.on .knob{transition:none}
 .bmroot{display:flex;flex-direction:column;gap:12px;align-items:center}
 @media (orientation:landscape) and (max-height:540px){
-  #app:has(.bmroot){max-width:none}
+  .bm #app{max-width:none}
   .bmroot{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-rows:auto 1fr auto;gap:4px 8px;align-items:center;justify-items:center}
   .bmst{grid-column:1/-1;grid-row:1}#bmc{grid-column:2;grid-row:2}.bmme{grid-column:2;grid-row:3}
   .bmpad{display:contents}.stick{grid-column:1;grid-row:2 / span 2;justify-self:start}.bombbtn{grid-column:3;grid-row:2 / span 2;justify-self:end}
@@ -210,7 +210,7 @@ const S={players:[],names:['','','',''],n:4,level:1,round:0,log:[],g:null,cb:nul
 const N=()=>S.players.length,nm=i=>esc(S.players[i].name);
 /* unchanged screens are not rebuilt: the lobby refreshes often and a rebuild would flash and could swallow a tap */
 let LASTHTML=null;
-function render(html,after){if(!after&&html===LASTHTML)return;LASTHTML=after?null:html;cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
+function render(html,after){if(!after&&html===LASTHTML)return;LASTHTML=after?null:html;document.documentElement.classList.remove('bm');cancelAnimationFrame(S.raf);clearTimeout(S.tmr);clearInterval(S.tmr);$('#app').innerHTML=html;const gb=$('#gbar');if(gb)gb.hidden=!(S.inGame&&(!NET.on||NET.host));scrollTo(0,0);after&&after()}
 /* go = a screen for everyone, gop = a screen only player i may see/act on. Offline both just render; online the host sends them to the right phones. */
 function go(html,after){if(!NET.on)return render(html,after);const aud=S.pi!=null?S.pi:'all';if(S.info)return netShowInfo(aud,html,S.info);netShow(aud,html)}
 function gop(i,html,after){if(!NET.on)return render(html,after);if(S.info)return netShowInfo(i,html,S.info);netShow(i,html)}
@@ -856,6 +856,7 @@ WID.bomber=(p,done)=>{
   if(!NET.host&&BM.sroom!==NET.room){BM.sroom=NET.room;NET.room.sub('bm/st',BM.recv)}
   render(`<div class=bmroot><div id=bmst class=bmst></div><canvas id=bmc width=${cols*T} height=${rows*T}></canvas><div id=bmme class=bmme></div>
   ${play?`<div class=bmpad><div class=stick id=stk aria-label="移動スティック"><div class=sbase><i class=a1>▲</i><i class=a2>▶</i><i class=a3>▼</i><i class=a4>◀</i><b class=knob></b></div></div><button id=bb class=bombbtn aria-label="爆弾">💣</button></div>`:'<p class=muted>観戦中</p>'}</div>`,()=>{
+    document.documentElement.classList.add('bm');   // landscape: let #app use the full width (no :has() needed)
     const cv=$('#bmc'),c0=cv.getContext('2d'),off=document.createElement('canvas');off.width=p.w*T;off.height=p.h*T;const c1=off.getContext('2d');let c=c0,dx=0,dy=0,sx=0,sy=0,seq=0,last=0,meKey='',bgKey='',pred=null,ghost=null,predT=0;
     const send=bomb=>{const m={dx,dy,ax:sx,ay:sy,bomb:bomb?1:0,n:++seq};if(NET.host){bmInput(BM.sim,0,m);if(bomb)bmPub()}else try{NET.room.pub('bm/in',{from:NET.room.id,...m})}catch(e){}};
     const dir=(x,y,a,b)=>{bmSnd('');dx=x;dy=y;sx=a||0;sy=b||0;send(0)};
@@ -889,7 +890,7 @@ WID.bomber=(p,done)=>{
       const set=v=>{cv.style.maxWidth='none';cv.style.height=v+'px';cv.style.width=(v*cols/rows)+'px'};
       for(let k=0;k<3;k++){
         set(h);
-        const pb=land?$('#bmme'):($('.bmpad')||$('#bmme')),bot=(pb||cv).getBoundingClientRect().bottom,over=bot-(vh-18);
+        const pb=land?$('#bmme'):($('.bmpad')||$('#bmme')),bot=(pb||cv).getBoundingClientRect().bottom,over=bot-(vh-(parseFloat(getComputedStyle(document.body).paddingBottom)||16)-2);
         if(over<=0.5)break;h=Math.max(120,h-over-2);
       }
     };
@@ -907,7 +908,7 @@ WID.bomber=(p,done)=>{
     const item=(x,y,ch,now)=>{
       const[col,ic]=ICON[ch],bob=Math.sin(now/260+x*1.7+y)*2;
       c.save();c.translate(x*T+T/2,y*T+T/2+bob);
-      c.fillStyle=col;c.beginPath();c.roundRect(-16,-16,32,32,8);c.fill();c.strokeStyle='rgba(255,255,255,.45)';c.lineWidth=2;c.stroke();
+      c.fillStyle=col;c.beginPath();c.moveTo(-8,-16);c.arcTo(16,-16,16,16,8);c.arcTo(16,16,-16,16,8);c.arcTo(-16,16,-16,-16,8);c.arcTo(-16,-16,16,-16,8);c.closePath();c.fill();c.strokeStyle='rgba(255,255,255,.45)';c.lineWidth=2;c.stroke();
       ic();c.restore();
     };
     const wallTile=(x,y)=>{box(x,y,'#6e5c4b');c.fillStyle='#85705a';c.fillRect(x*T,y*T,T,5);c.fillStyle='#4a3d31';c.fillRect(x*T,y*T+T-6,T,6);c.fillStyle='rgba(0,0,0,.18)';c.fillRect(x*T+T/2-1,y*T+5,2,T-11);c.fillRect(x*T+4,y*T+T/2-1,T-8,2)};
