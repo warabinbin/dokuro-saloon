@@ -64,6 +64,35 @@ button.sm{min-height:36px;font-size:14px;padding:4px 10px;flex:0 0 auto}
 .mis{display:flex;flex-direction:column;gap:8px}
 .sub{display:block;font-weight:500;font-size:12px;opacity:.8}
 button[disabled]{opacity:.4;cursor:not-allowed}
+/* ---- title screen: playful, but only transform/opacity are animated (cheap), and it stops for reduced-motion / low-end phones ---- */
+.title{display:flex;flex-direction:column;gap:14px;position:relative}
+.scene{position:relative;height:210px;display:flex;justify-content:center;align-items:flex-end;gap:0;overflow:hidden;border-radius:20px;background:radial-gradient(260px 160px at 50% 70%,rgba(240,166,58,.2),transparent 70%),#1d1510;border:2px solid var(--line)}
+.scene .skull{width:128px;height:128px;margin-bottom:8px;animation:float 2.6s ease-in-out infinite;transform-origin:50% 90%;z-index:2}
+.scene .eyes{transform-box:fill-box;transform-origin:center;animation:blink 4.2s infinite}
+.scene .hat{transform-box:fill-box;transform-origin:50% 100%;animation:tip 3.4s ease-in-out infinite}
+.scene .mug{width:70px;height:70px;position:absolute;bottom:20px;z-index:3}
+.scene .mug.l{left:calc(50% - 128px);transform-origin:80% 95%;animation:clinkL 3s ease-in-out infinite}
+.scene .mug.r{right:calc(50% - 128px);transform-origin:20% 95%;animation:clinkR 3s ease-in-out infinite}
+.scene .spark{position:absolute;left:50%;top:48px;width:40px;height:40px;margin-left:-20px;opacity:0;z-index:4;animation:spark 3s ease-out infinite}
+.scene i{position:absolute;bottom:-14px;border:2px solid rgba(240,166,58,.55);border-radius:50%;opacity:0;animation:rise 4.5s linear infinite}
+.title h1{font-size:46px;text-align:center;line-height:1.15;letter-spacing:.02em;text-shadow:0 4px 0 #6d3f10,0 0 26px rgba(240,166,58,.35)}
+.title h1 span{display:inline-block;animation:bob 2.4s ease-in-out infinite}
+.bubble{position:relative;align-self:center;background:#2a1f18;border:2px solid #4a3a2e;border-radius:16px;padding:8px 18px;font-weight:700;font-size:17px}
+.bubble::after{content:"";position:absolute;left:50%;top:-10px;margin-left:-8px;border:8px solid transparent;border-top:0;border-bottom-color:#4a3a2e}
+.mode{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:92px;border-radius:20px;font-size:23px;line-height:1.3;box-shadow:0 7px 0 rgba(0,0,0,.4);transition:transform .08s,box-shadow .08s}
+.mode small{font-size:13px;font-weight:700;opacity:.8}
+.mode.m1{transform:rotate(-1.4deg)}.mode.m2{transform:rotate(1.1deg)}
+.mode:active{transform:translateY(5px) rotate(0);box-shadow:0 2px 0 rgba(0,0,0,.4)}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-8px) rotate(2deg)}}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.12)}}
+@keyframes tip{0%,70%,100%{transform:rotate(0)}80%{transform:rotate(-9deg)}90%{transform:rotate(4deg)}}
+@keyframes clinkL{0%,55%,100%{transform:rotate(-10deg) translateX(-6px)}68%{transform:rotate(14deg) translateX(18px)}74%{transform:rotate(2deg) translateX(8px)}}
+@keyframes clinkR{0%,55%,100%{transform:rotate(10deg) translateX(6px)}68%{transform:rotate(-14deg) translateX(-18px)}74%{transform:rotate(-2deg) translateX(-8px)}}
+@keyframes spark{0%,64%{opacity:0;transform:scale(.2) rotate(0)}70%{opacity:1;transform:scale(1.25) rotate(20deg)}85%,100%{opacity:0;transform:scale(1.6) rotate(40deg)}}
+@keyframes rise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.8}100%{transform:translateY(-230px) scale(1.2);opacity:0}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@media (prefers-reduced-motion:reduce){.title *,.title *::after{animation:none!important}.mode{transition:none}}
+.calm .title *,.calm .title *::after{animation:none!important}
 ol{margin:0;padding-left:1.4em}
 .row.nums{gap:6px}.nums>button{flex:1 1 34px;min-width:0;padding:10px 2px}
 #gbar{max-width:440px;margin:0 auto 8px;display:flex}#gbar[hidden]{display:none}
@@ -93,15 +122,25 @@ const nextBtn=(t='次へ')=>`<button data-act=cb>${t}</button>`;
 function pass(i,label,next){S.cb=next;if(NET.on){S.pi=i;try{next()}finally{S.pi=null}return}go(`<p class=k>${label}</p><h2>${nm(i)}にスマホを渡して</h2><p class=muted>他の人は画面を見ない</p><button data-act=cb>私が${nm(i)}です</button>`)}
 
 /* ---- setup ---- */
+const SKULL=`<svg class="skull" viewBox="0 0 120 120" aria-hidden="true"><g class="hat"><ellipse cx="60" cy="34" rx="48" ry="9" fill="#8a4b24"/><path d="M35 34Q37 5 60 5Q83 5 85 34Z" fill="#a85d2b"/><rect x="37" y="25" width="46" height="6" fill="#3a2d24"/></g><ellipse cx="60" cy="63" rx="34" ry="30" fill="#f0a63a"/><rect x="44" y="83" width="32" height="20" rx="3" fill="#f0a63a"/><g class="eyes"><ellipse cx="47" cy="63" rx="9" ry="10" fill="#17120f"/><ellipse cx="73" cy="63" rx="9" ry="10" fill="#17120f"/></g><path d="M60 73l-5 10h10z" fill="#17120f"/><rect x="50" y="91" width="3.5" height="12" fill="#17120f"/><rect x="58.2" y="91" width="3.5" height="12" fill="#17120f"/><rect x="66.5" y="91" width="3.5" height="12" fill="#17120f"/></svg>`;
+const MUG=`<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 18h34v36a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6z" fill="#f0a63a" stroke="#17120f" stroke-width="3"/><path d="M46 26h6a6 6 0 0 1 0 22h-6" fill="none" stroke="#f3e9dc" stroke-width="5"/><g fill="#f3e9dc"><circle cx="18" cy="16" r="8"/><circle cx="30" cy="12" r="9"/><circle cx="42" cy="16" r="8"/></g><rect x="18" y="26" width="5" height="26" rx="2.5" fill="rgba(255,255,255,.35)"/></svg>`;
+const SPARK=`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 0l4 14 14 6-14 6-4 14-4-14-14-6 14-6z" fill="#ffd23f"/></svg>`;
 function setup(){
   S.inGame=false;
   const sv=savedInfo(),online=window.mqtt&&window.top===window;
+  const bubbles=[[14,6,0],[30,9,1.1],[46,7,2.2],[62,10,.6],[78,6,1.7],[90,8,2.8]].map(([x,sz,d])=>`<i style="left:${x}%;width:${sz+4}px;height:${sz+4}px;animation-delay:${d}s"></i>`).join('');
+  go(`<div class="title"><div class="scene">${bubbles}<div class="mug l">${MUG}</div>${SKULL}<div class="mug r">${MUG}</div><div class="spark">${SPARK}</div></div>
+  <h1 aria-label="ドクロ酒場">${[...'ドクロ酒場'].map((ch,i)=>`<span style="animation-delay:${i*.14}s">${ch}</span>`).join('')}</h1>
+  <div class="bubble">今夜はどう乾杯する?</div>
+  ${sv?`<button class=alt data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}
+  ${online?`<button class="mode m1" data-act=netmenu>みんなのスマホで<small>オンライン・各自が自分のスマホで操作</small></button>`:''}
+  <button class="mode m2 grn" data-act=local>1台を回して<small>テーブルの真ん中に置いて、順番に</small></button></div>`);
+}
+function setupLocal(){
   const inputs=Array.from({length:S.n},(_,i)=>`<input id="n${i}" maxlength=8 placeholder="プレイヤー${i+1}" value="${esc(S.names[i]||'')}">`).join('');
-  go(`<h1>ドクロ酒場</h1><p class=muted>1台を回しても、各自のスマホでも遊べる飲み会ゲーム集。飲めない人は水でOK。ライフが減る=ひと口。</p>
-  ${sv?`<button data-act=resume>前回の夜を続ける(${sv.players.length}人 / ラウンド${sv.round+1})</button>`:''}
-  ${online?`<div class=card><h3>各自のスマホで遊ぶ</h3><p class=muted>幹事が部屋を作り、全員が自分のスマホで操作する。</p><button data-act=netmenu>オンラインで始める</button></div>`:''}
-  <div class=card><h3>1台を回して遊ぶ</h3><p class=muted>人数</p><div class="row nums">${[2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===S.n?'sel':''}" data-act=setn data-i=${n}>${n}</button>`).join('')}</div>${inputs}
-  <p class=muted>嘘つきグラス: 5人以上は毎回、狂人が1人。4人は5回に1回ほど狂人あり。</p><button data-act=start>乾杯!</button></div>`);
+  go(`<p class=k>1台を回して遊ぶ</p><h2>何人で飲む?</h2>
+  <div class=card><div class="row nums">${[2,3,4,5,6,7,8].map(n=>`<button class="alt ${n===S.n?'sel':''}" data-act=setn data-i=${n}>${n}</button>`).join('')}</div>${inputs}</div>
+  <button data-act=start>乾杯!</button><button class=alt data-act=netback>戻る</button>`);
 }
 /* ---- save / resume + link to the invaders page (same origin, so localStorage is shared) ---- */
 const SAVE_KEYS=['players','names','n','round','log','evShown','ev','narr','dans'];
@@ -771,7 +810,7 @@ async function netLeave(){
 
 /* ---- events ---- */
 const A={
- setn(e){readNames();S.n=+e.dataset.i;setup()},
+ setn(e){readNames();S.n=+e.dataset.i;setupLocal()},local(){setupLocal()},
  start(){readNames();try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
   S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
  g1(){liar()},g20(){openInv()},
@@ -850,5 +889,6 @@ $('#app').addEventListener('click',e=>{
   const back=new URLSearchParams(location.search).get('back')==='1';
   if(back&&load()){try{history.replaceState(null,'',location.pathname)}catch(e){}importInv();hub()}else setup();
 })();
+try{if((navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)||(navigator.deviceMemory&&navigator.deviceMemory<=2))document.documentElement.classList.add('calm')}catch(e){}
 window.__bar={S,A,NET,WID,matchAns,normAns,DRAW};
 </script>
