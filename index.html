@@ -701,7 +701,7 @@ function bombHold(i){
 }
 
 /* ---- ボンバー酒場 (online only): the host runs the sim, every phone sends d-pad input and draws the state it receives ---- */
-const BTICK=100,BCOL=['#f0a63a','#4aa3d8','#5fae7a','#e0553a','#c78bff','#ffd23f','#7bd0c1','#ff8fb8'],BMAX=8,VCOLS=13,VROWS=15;   // phones show at most a 13x15 window and scroll on bigger maps
+const BTICK=50,BK=2,BCOL=['#f0a63a','#4aa3d8','#5fae7a','#e0553a','#c78bff','#ffd23f','#7bd0c1','#ff8fb8'],BMAX=8,VCOLS=13,VROWS=15;   // phones show at most a 13x15 window and scroll on bigger maps
 /* map size: 13x15 is the 4-player standard; k scales the area, and it also grows with the player count (always odd sizes) */
 const bmOdd=x=>2*Math.round((x-1)/2)+1;
 function bmDims(np,k){const f=Math.max(.7,(k||1)*np/4);return[Math.max(9,bmOdd(13*Math.sqrt(f))),Math.max(11,bmOdd(15*Math.sqrt(f)))]}
@@ -726,14 +726,14 @@ function bmNew(np,k){
     if(x0<x1)for(let y=y1-1;y>y0;y--)spi.push([x0,y]);
     x0++;y0++;x1--;y1--;
   }
-  return{g,w,h,np,sdn:Math.round(900*Math.sqrt(w*h/195)),sds:w*h>260?2:3,tick:0,t0:30,rc:30,ph:'ready',b:[],f:[],spi,sdi:0,rank:null,
-    p:Array.from({length:np},(_,i)=>({i,x:sp[i][0],y:sp[i][1],a:1,mb:1,pw:2,sp:3,cd:0,dx:0,dy:0,nb:0,d:0,sh:0,inv:0,kick:0,rv:0,sx:0,sy:0,inT:0}))};
+  return{g,w,h,np,sdn:Math.round(900*BK*Math.sqrt(w*h/195)),sds:(w*h>260?2:3)*BK,tick:0,t0:30*BK,rc:30*BK,ph:'ready',b:[],f:[],spi,sdi:0,rank:null,
+    p:Array.from({length:np},(_,i)=>({i,x:sp[i][0],y:sp[i][1],a:1,mb:1,pw:2,sp:4,cd:0,dx:0,dy:0,nb:0,d:0,sh:0,inv:0,kick:0,rv:0,sx:0,sy:0,inT:0}))};
 }
 const bmAt=(s,x,y)=>s.g[y*s.w+x];
 function bmFree(s,x,y,p){const c=bmAt(s,x,y);if(c==='#'||c==='+')return false;return !s.b.some(b=>b.x===x&&b.y===y&&!b.walk.includes(p.i))}
 function bmKill(s,p,force){
   if(!p.a||p.inv>0&&!force)return;
-  if(p.sh&&!force){p.sh=0;p.inv=8;return}   // barrier soaks one hit
+  if(p.sh&&!force){p.sh=0;p.inv=8*BK;return}   // barrier soaks one hit
   p.a=0;p.d=s.tick;
 }
 function bmInput(s,i,m){
@@ -741,7 +741,7 @@ function bmInput(s,i,m){
   p.dx=Math.sign(+m.dx||0);p.dy=p.dx?0:Math.sign(+m.dy||0);p.inT=s.tick;
   p.sx=p.dy?Math.sign(+m.ax||0):0;p.sy=p.dx?Math.sign(+m.ay||0):0;   // diagonal stick: the other axis is the fallback when the main one is blocked
   if(m.bomb&&s.ph==='play'&&p.nb<p.mb&&!s.b.some(b=>b.x===p.x&&b.y===p.y)){
-    s.b.push({x:p.x,y:p.y,t:24,pw:p.pw,o:i,walk:s.p.filter(q=>q.a&&q.x===p.x&&q.y===p.y).map(q=>q.i)});p.nb++;
+    s.b.push({x:p.x,y:p.y,t:24*BK,pw:p.pw,o:i,walk:s.p.filter(q=>q.a&&q.x===p.x&&q.y===p.y).map(q=>q.i)});p.nb++;
   }
 }
 function bmTick(s){
@@ -755,7 +755,7 @@ function bmTick(s){
   }
   s.p.forEach(p=>{
     if(!p.a)return;if(p.cd>0)p.cd--;if(p.inv>0)p.inv--;if(p.rv>0)p.rv--;
-    if(s.exp&&(p.dx||p.dy)&&s.tick-p.inT>8)p.dx=p.dy=0;   // phones re-send a held direction every 250ms; silence means the release got lost
+    if(s.exp&&(p.dx||p.dy)&&s.tick-p.inT>8*BK)p.dx=p.dy=0;   // phones re-send a held direction every 250ms; silence means the release got lost
     if(p.cd<=0&&(p.dx||p.dy)){
       const ord=[[p.dx,p.dy]];if(p.sx||p.sy)ord.push([p.sx,p.sy]);
       for(const[ux,uy]of ord){
@@ -765,7 +765,7 @@ function bmTick(s){
           p.x=nx;p.y=ny;p.cd=p.sp;
           s.b.forEach(b=>{if(b.walk.includes(p.i)&&!(b.x===p.x&&b.y===p.y))b.walk=b.walk.filter(k=>k!==p.i)});
           const c=bmAt(s,nx,ny);
-          if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(1,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50;
+          if(c==='f')p.pw++;else if(c==='b')p.mb++;else if(c==='s')p.sp=Math.max(2,p.sp-1);else if(c==='h')p.sh=1;else if(c==='k')p.kick=1;else if(c==='d')p.rv=50*BK;
           if(ITEMS.includes(c))s.g[ny*s.w+nx]='.';
           break;
         }
@@ -774,7 +774,7 @@ function bmTick(s){
   });
   s.b.forEach(b=>{
     b.t--;
-    if((b.vx||b.vy)&&s.tick%2===0){const nx=b.x+b.vx,ny=b.y+b.vy,c=bmAt(s,nx,ny);
+    if((b.vx||b.vy)&&s.tick%(2*BK)===0){const nx=b.x+b.vx,ny=b.y+b.vy,c=bmAt(s,nx,ny);
       if(c==='#'||c==='+'||s.b.some(o=>o!==b&&o.x===nx&&o.y===ny)||s.p.some(q=>q.a&&q.x===nx&&q.y===ny))b.vx=b.vy=0;else{b.x=nx;b.y=ny}}
   });
   const q=s.b.filter(b=>b.t<=0);
@@ -787,7 +787,7 @@ function bmTick(s){
       if(c==='+'){s.g[y*s.w+x]=Math.random()<.4?IW[Math.random()*IW.length|0]:'.';break}
       if(ITEMS.includes(c)){s.g[y*s.w+x]='.';break}
     }
-    cells.forEach(([x,y])=>{s.f.push({x,y,t:4});s.b.forEach(o=>{if(!o.done&&o.x===x&&o.y===y)q.push(o)})});
+    cells.forEach(([x,y])=>{s.f.push({x,y,t:4*BK});s.b.forEach(o=>{if(!o.done&&o.x===x&&o.y===y)q.push(o)})});
   }
   s.b=s.b.filter(b=>!b.done);
   s.f.forEach(f=>f.t--);
@@ -799,12 +799,12 @@ function bmTick(s){
     s.rank=s.p.map(p=>1+s.p.filter(o=>key(o)>key(p)).length);
   }
 }
-const bmMsg=s=>({k:'bm',t:s.tick,ph:s.ph,rc:s.rc,w:s.w,h:s.h,sd:s.tick-s.t0,sdn:s.sdn,g:s.g.join(''),p:s.p.map(p=>[p.x,p.y,p.a,p.sh,p.rv>0?1:0,p.pw,p.mb,4-p.sp,p.kick]),b:s.b.map(b=>[b.x,b.y,b.t]),f:s.f.map(f=>[f.x,f.y]),rk:s.rank});
+const bmMsg=s=>({k:'bm',t:s.tick,ph:s.ph,rc:s.rc,w:s.w,h:s.h,sd:s.tick-s.t0,sdn:s.sdn,g:s.g.join(''),p:s.p.map(p=>[p.x,p.y,p.a,p.sh,p.rv>0?1:0,p.pw,p.mb,p.sp,p.kick]),b:s.b.map(b=>[b.x,b.y,b.t]),f:s.f.map(f=>[f.x,f.y]),rk:s.rank});
 BM.recv=m=>{if(m&&m.k==='bm'&&(!BM.cur||m.t>=BM.cur.t))BM.cur=m};
 BM.stop=()=>{clearInterval(BM.iv);BM.iv=0;if(BM.sim)clearTimeout(BM.sim.endT);BM.sim=null;BM.cur=null;BM.seen=null;BM.tok=0};
 function bmPub(){const s=BM.sim;if(!s)return;const m=bmMsg(s);BM.recv(m);try{NET.room.pub('bm/st',m)}catch(e){}}
 function bmStep(){
-  const s=BM.sim;if(!s)return;bmTick(s);bmPub();
+  const s=BM.sim;if(!s)return;bmTick(s);if(s.tick%2===0||s.ph==='over')bmPub();
   if(s.ph==='over'&&!s.endT)s.endT=setTimeout(bomberResult,3200);
 }
 function bomberIntro(){
@@ -913,7 +913,7 @@ WID.bomber=(p,done)=>{
     const wallTile=(x,y)=>{box(x,y,'#6e5c4b');c.fillStyle='#85705a';c.fillRect(x*T,y*T,T,5);c.fillStyle='#4a3d31';c.fillRect(x*T,y*T+T-6,T,6);c.fillStyle='rgba(0,0,0,.18)';c.fillRect(x*T+T/2-1,y*T+5,2,T-11);c.fillRect(x*T+4,y*T+T/2-1,T-8,2)};
     const crate=(x,y)=>{box(x,y,'#a8743a');c.fillStyle='#bd8745';c.fillRect(x*T,y*T,T,4);c.strokeStyle='#6b4520';c.lineWidth=3;c.strokeRect(x*T+3,y*T+3,T-6,T-6);c.beginPath();c.moveTo(x*T+5,y*T+5);c.lineTo(x*T+T-5,y*T+T-5);c.moveTo(x*T+T-5,y*T+5);c.lineTo(x*T+5,y*T+T-5);c.stroke()};
     const bomb=(x,y,t,now)=>{
-      const cx=x*T+T/2,cy=y*T+T/2+3,pulse=1+Math.sin(now/80)*.07*(t<10?2:1),hot=t<8&&((now/90|0)%2);
+      const cx=x*T+T/2,cy=y*T+T/2+3,pulse=1+Math.sin(now/80)*.07*(t<10*BK?2:1),hot=t<8*BK&&((now/90|0)%2);
       c.fillStyle='rgba(0,0,0,.35)';c.beginPath();c.ellipse(cx,cy+11,12,4,0,0,6.283);c.fill();
       c.fillStyle=hot?'#e0553a':'#0e0b09';c.beginPath();c.arc(cx,cy,13*pulse,0,6.283);c.fill();
       c.fillStyle=hot?'#ff9a7a':'#59505a';c.beginPath();c.arc(cx-4,cy-5,4,0,6.283);c.fill();
@@ -946,12 +946,12 @@ WID.bomber=(p,done)=>{
     const predStep=(st,dt,now,hx,hy)=>{
       const m=st.p[me];pred.cd-=dt*1000;
       if(st.ph==='play'&&pred.cd<=0&&(dx||dy)){
-        for(const[ux,uy]of(sx||sy)?[[dx,dy],[sx,sy]]:[[dx,dy]]){const nx=pred.x+(m[4]?-ux:ux),ny=pred.y+(m[4]?-uy:uy);if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=(4-m[7])*BTICK;break}}
+        for(const[ux,uy]of(sx||sy)?[[dx,dy],[sx,sy]]:[[dx,dy]]){const nx=pred.x+(m[4]?-ux:ux),ny=pred.y+(m[4]?-uy:uy);if(freeL(st,nx,ny)){pred.x=nx;pred.y=ny;pred.cd=m[7]*BTICK;break}}
       }
       if(!dx&&!dy&&(pred.x!==hx||pred.y!==hy)&&now-predT>350){pred.x=hx;pred.y=hy}   // idle and still disagreeing: trust the host
     };
     const events=(st,pv)=>{
-      if(st.ph==='ready'&&(!pv||Math.ceil(pv.rc/10)!==Math.ceil(st.rc/10)))bmSnd('count');
+      if(st.ph==='ready'&&(!pv||Math.ceil(pv.rc/(10*BK))!==Math.ceil(st.rc/(10*BK))))bmSnd('count');
       if(pv&&pv.ph==='ready'&&st.ph==='play')bmSnd('go');
       if(!pv)return;
       const fresh=st.f.filter(([x,y])=>!pv.f.some(o=>o[0]===x&&o[1]===y));
@@ -960,7 +960,7 @@ WID.bomber=(p,done)=>{
       st.p.forEach((q,i)=>{
         const o=pv.p[i];if(!o)return;
         if(o[2]&&!q[2]){bmSnd('die');BM.feed.push({t:3,txt:p.names[i]+' が脱落',col:BCOL[i]});if(i===me)bmVib([120,60,220])}
-        if(i===me&&q[2]&&(q[5]+q[6]+q[7]+(q[8]|0)>o[5]+o[6]+o[7]+(o[8]|0)||q[3]&&!o[3]))bmSnd('pick');
+        if(i===me&&q[2]&&(q[5]+q[6]-q[7]+(q[8]|0)>o[5]+o[6]-o[7]+(o[8]|0)||q[3]&&!o[3]))bmSnd('pick');
       });
       if(st.ph==='over'&&pv.ph!=='over'&&st.rk&&st.rk[me]===1)bmSnd('win');
     };
@@ -1000,10 +1000,10 @@ WID.bomber=(p,done)=>{
         c.restore();
         BM.feed=BM.feed.filter(q=>(q.t-=dt)>0);BM.feed.forEach((q,k)=>{c.globalAlpha=Math.min(1,q.t);c.fillStyle='rgba(14,11,9,.75)';c.fillRect(6,6+k*24,150,21);c.fillStyle=q.col;c.font='700 14px sans-serif';c.textAlign='left';c.textBaseline='middle';c.fillText(q.txt,12,17+k*24);c.globalAlpha=1});
         const mine=st.p[me],left=st.sdn-st.sd;
-        if(st.ph==='ready'){banner(Math.ceil(st.rc/10),90)}
+        if(st.ph==='ready'){banner(Math.ceil(st.rc/(10*BK)),90)}
         else if(st.ph==='play'){
-          if(st.sd<8)banner('GO!',80,'#5fae7a');
-          else if(left>0&&left<=100)ribbon('あと'+Math.ceil(left/10)+'秒で壁がせり出す','#ffd23f',cv.height-34);
+          if(st.sd<8*BK)banner('GO!',80,'#5fae7a');
+          else if(left>0&&left<=100*BK)ribbon('あと'+Math.ceil(left/(10*BK))+'秒で壁がせり出す','#ffd23f',cv.height-34);
           else if(left<=0)ribbon('壁が迫っている!','#e0553a',cv.height-34);
           if(play&&mine&&!mine[2])ribbon('脱落…観戦中','#a89886',0);
         }
@@ -1013,7 +1013,7 @@ WID.bomber=(p,done)=>{
         if(e&&e.dataset.k!==stKey){e.dataset.k=stKey;e.innerHTML=p.names.slice(0,p.np).map((n,i)=>`<span style="color:${BCOL[i]};${st.p[i]&&!st.p[i][2]?'opacity:.35;text-decoration:line-through':''}">●${esc(n)}</span>`).join(' ');fitCv()}
         if(play&&mine){
           const key=mine.slice(3).join(',')+mine[1];
-          if(key!==meKey){meKey=key;const m=$('#bmme');if(m){m.innerHTML=`<span>火力 ${mine[5]}</span><span>爆弾 ${mine[6]}</span><span>速度 ${mine[7]}</span>${mine[3]?'<span class=on>盾</span>':''}${mine[8]?'<span class=on>蹴</span>':''}${mine[4]?'<span class=bad>呪(逆)</span>':''}`;fitCv()}}
+          if(key!==meKey){meKey=key;const m=$('#bmme');if(m){m.innerHTML=`<span>火力 ${mine[5]}</span><span>爆弾 ${mine[6]}</span><span>速度 ${5-mine[7]}</span>${mine[3]?'<span class=on>盾</span>':''}${mine[8]?'<span class=on>蹴</span>':''}${mine[4]?'<span class=bad>呪(逆)</span>':''}`;fitCv()}}
         }
       }
       S.raf=requestAnimationFrame(frame);
