@@ -106,13 +106,10 @@ let PICK=[0,1,2,3,0,1,2,3],VSHIP=0;
 try{const a=JSON.parse(LS.get('dk_ships')||'null');if(Array.isArray(a)&&a.length>=8)PICK=a.map(x=>clamp(x|0,0,3));VSHIP=clamp(LS.get('dk_ship')|0,0,3)}catch(e){}
 function poly(c,p){c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)c.lineTo(p[i][0],p[i][1]);for(let i=p.length-2;i>=1;i--)c.lineTo(-p[i][0],p[i][1]);c.closePath()}
 function metal(c,col,w){const g=c.createLinearGradient(-w,0,w,0);g.addColorStop(0,shade(col,.55));g.addColorStop(.5,shade(col,1.35));g.addColorStop(1,shade(col,.55));c.fillStyle=g}
-function shipDraw(c,x,y,ty,col,t,tilt,flame){
-  const Sh=SHAPES[ty];c.save();c.translate(x,y);c.rotate(tilt);
+/* the hull is drawn once per (type,colour) into a small canvas; per frame only the flame and blinking lights are drawn */
+function shipBody(c,ty,col){
+  const Sh=SHAPES[ty];
   c.globalAlpha=.15;c.fillStyle=col;c.beginPath();c.arc(0,2,25,0,7);c.fill();c.globalAlpha=1;
-  if(flame){c.globalCompositeOperation='lighter';
-    Sh.eng.forEach(ex=>{const fl=Sh.fl+Math.sin(t*38+ex)*3,g=c.createLinearGradient(0,12,0,12+fl);g.addColorStop(0,'rgba(255,230,140,.95)');g.addColorStop(1,'rgba(255,90,40,0)');c.fillStyle=g;c.beginPath();c.moveTo(ex-3,12);c.lineTo(ex+3,12);c.lineTo(ex,12+fl);c.closePath();c.fill();
-      const gl=c.createRadialGradient(ex,12,0,ex,12,10);gl.addColorStop(0,'rgba(130,210,255,.6)');gl.addColorStop(1,'rgba(130,210,255,0)');c.fillStyle=gl;c.beginPath();c.arc(ex,12,10,0,7);c.fill()});
-    c.globalCompositeOperation='source-over'}
   c.lineWidth=1;c.strokeStyle='rgba(0,0,0,.45)';
   metal(c,col,Sh.w);poly(c,Sh.wing);c.fill();c.stroke();
   if(Sh.can){c.fillStyle=shade(col,.8);poly(c,Sh.can);c.fill()}
@@ -124,8 +121,43 @@ function shipDraw(c,x,y,ty,col,t,tilt,flame){
   c.fillStyle='rgba(255,255,255,.7)';c.fillRect(cx-.6,cy-ry+1,1.2,ry*.8);
   if(Sh.core){const g2=c.createRadialGradient(0,3,0,0,3,7);g2.addColorStop(0,'#fff3b0');g2.addColorStop(1,'rgba(255,140,40,0)');c.fillStyle=g2;c.beginPath();c.arc(0,3,7,0,7);c.fill()}
   if(Sh.tip){c.globalCompositeOperation='lighter';const g3=c.createRadialGradient(0,-27,0,0,-27,9);g3.addColorStop(0,'rgba(150,240,255,.95)');g3.addColorStop(1,'rgba(150,240,255,0)');c.fillStyle=g3;c.beginPath();c.arc(0,-27,9,0,7);c.fill();c.globalCompositeOperation='source-over'}
-  const wt=Sh.wing[3],on=Math.sin(t*6)>0;c.fillStyle=on?'#ff6a5c':'#7a2a24';c.fillRect(-wt[0]-1,wt[1]-1,2,2);c.fillStyle=on?'#5cff9a':'#245a3a';c.fillRect(wt[0]-1,wt[1]-1,2,2);
+}
+function shipLights(c,ty,t){const wt=SHAPES[ty].wing[3],on=Math.sin(t*6)>0;c.fillStyle=on?'#ff6a5c':'#7a2a24';c.fillRect(-wt[0]-1,wt[1]-1,2,2);c.fillStyle=on?'#5cff9a':'#245a3a';c.fillRect(wt[0]-1,wt[1]-1,2,2)}
+/* full-quality flame (gradients) for the few ships shown in menus */
+function shipFlameFull(c,ty,t){
+  const Sh=SHAPES[ty];c.globalCompositeOperation='lighter';
+  Sh.eng.forEach(ex=>{const fl=Sh.fl+Math.sin(t*38+ex)*3,g=c.createLinearGradient(0,12,0,12+fl);g.addColorStop(0,'rgba(255,230,140,.95)');g.addColorStop(1,'rgba(255,90,40,0)');c.fillStyle=g;c.beginPath();c.moveTo(ex-3,12);c.lineTo(ex+3,12);c.lineTo(ex,12+fl);c.closePath();c.fill();
+    const gl=c.createRadialGradient(ex,12,0,ex,12,10);gl.addColorStop(0,'rgba(130,210,255,.6)');gl.addColorStop(1,'rgba(130,210,255,0)');c.fillStyle=gl;c.beginPath();c.arc(ex,12,10,0,7);c.fill()});
+  c.globalCompositeOperation='source-over';
+}
+/* cheap flame for in-game ships: flat triangles, no gradients */
+function shipFlameFast(c,ty,t){
+  const Sh=SHAPES[ty];c.globalCompositeOperation='lighter';
+  Sh.eng.forEach(ex=>{const fl=Sh.fl+Math.sin(t*38+ex)*3;
+    c.fillStyle='rgba(255,215,120,.9)';c.beginPath();c.moveTo(ex-3,12);c.lineTo(ex+3,12);c.lineTo(ex,12+fl);c.closePath();c.fill();
+    c.fillStyle='rgba(255,110,50,.55)';c.beginPath();c.moveTo(ex-1.5,12);c.lineTo(ex+1.5,12);c.lineTo(ex,12+fl*1.35);c.closePath();c.fill();
+    c.fillStyle='rgba(130,210,255,.3)';c.beginPath();c.arc(ex,12,6,0,7);c.fill()});
+  c.globalCompositeOperation='source-over';
+}
+const SPR={};
+function spriteFor(ty,col){
+  const k=ty+col;if(SPR[k])return SPR[k];
+  const c=document.createElement('canvas');c.width=64*dpr;c.height=64*dpr;
+  const x=c.getContext('2d');x.scale(dpr,dpr);x.translate(32,34);shipBody(x,ty,col);
+  return SPR[k]=c;
+}
+function shipDraw(c,x,y,ty,col,t,tilt,flame){
+  c.save();c.translate(x,y);c.rotate(tilt);
+  if(flame)shipFlameFull(c,ty,t);
+  shipBody(c,ty,col);shipLights(c,ty,t);
   c.restore();
+}
+function shipFast(s,t){
+  ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.tilt);
+  shipFlameFast(ctx,s.ty,t);
+  ctx.drawImage(spriteFor(s.ty,COLS[s.p]),-32,-34,64,64);
+  shipLights(ctx,s.ty,t);
+  ctx.restore();
 }
 
 /* ================= audio ================= */
@@ -186,7 +218,7 @@ const fxText=(x,y,text,col='#f3e9dc')=>{if(G.fx.length<30)G.fx.push({x,y,text,co
    Each player publishes their presence as a retained message on a public MQTT broker over wss, so any network pairing works.
    Two brokers are used at once; either one alone is enough. */
 function mqttRoom(){
-  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
   return{join:name=>new Promise((resolve,reject)=>{
     const id=Math.random().toString(36).slice(2,10),base='dokuro-saloon-inv/'+name+'/',state=new Map(),hs=new Set(),cs=[];
     let done=false,cur={},tp=0,failed=0,lastErr='',to=0,hb=0;
@@ -569,7 +601,7 @@ function draw(){
   g.dv.forEach(d=>skull(d.x,d.y,d.w,d.h,'#c78bff',d.flash>0,t));
   g.it.forEach(i=>{const c={R:'#ffd23f',T:'#4aa3d8',S:'#5fae7a',B:'#e0553a',H:'#ff6fae'}[i.k];ctx.save();ctx.translate(i.x,i.y);ctx.globalAlpha=.25;ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,0,17,0,7);ctx.fill();ctx.globalAlpha=1;ctx.rotate(Math.PI/4+Math.sin(t*4)*.2);ctx.fillStyle=c;ctx.fillRect(-8,-8,16,16);ctx.rotate(-Math.PI/4-Math.sin(t*4)*.2);ctx.fillStyle='#120d0a';ctx.font='700 12px sans-serif';ctx.textAlign='center';ctx.fillText(i.k,0,4);ctx.restore()});
   g.bul.forEach(b=>{const c=COLS[b.own];ctx.globalAlpha=.3;ctx.fillStyle=c;ctx.fillRect(b.x-(b.k?3.5:2.5),b.y-4,b.k?7:5,b.k?26:18);ctx.globalAlpha=1;ctx.fillStyle=c;ctx.fillRect(b.x-(b.k?2:1.5),b.y-8,b.k?4:3,b.k?18:12);ctx.fillStyle='#fff';ctx.fillRect(b.x-.7,b.y-8,1.4,b.k?12:5)});
-  g.ships.forEach(s=>{if(!s.alive)return;if(s.inv>0&&s.refl<=0&&((s.inv*12)|0)%2)return;shipDraw(ctx,s.x,s.y,s.ty,COLS[s.p],t,s.tilt,true);
+  g.ships.forEach(s=>{if(!s.alive)return;if(s.inv>0&&s.refl<=0&&((s.inv*12)|0)%2)return;shipFast(s,t);
     if(s.flashT>0){ctx.fillStyle='#fff';ctx.globalAlpha=.9;ctx.beginPath();ctx.arc(s.x,s.y-22,4,0,7);ctx.fill();ctx.globalAlpha=1}
     if(s.shield>0){ctx.strokeStyle='#5fae7a';ctx.lineWidth=2;ctx.globalAlpha=.6+Math.sin(t*10)*.3;ctx.beginPath();ctx.arc(s.x,s.y,22,0,7);ctx.stroke();ctx.globalAlpha=1}
     if(s.refl>0){ctx.strokeStyle='#8affc0';ctx.lineWidth=2.5;ctx.globalAlpha=.55+Math.sin(t*14)*.3;ctx.beginPath();ctx.arc(s.x,s.y,32,0,7);ctx.stroke();ctx.globalAlpha=.12;ctx.fillStyle='#8affc0';ctx.fill();ctx.globalAlpha=1}
@@ -696,7 +728,16 @@ const A={
   resume(){if(G){G.paused=false;lastT=performance.now();ov.style.display='none';ov.innerHTML=''}},
   async vsmenu(){await leaveRoom();G=null;showVsMenu()},
   cpu(b){readName();startCpu(+b.dataset.k)},
-  async mk(){readName();const c=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');await joinRoom(c,true)},
+  async mk(){
+    readName();const sleep_=ms=>new Promise(r=>setTimeout(r,ms));
+    for(let t=0;t<4;t++){
+      const c=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');
+      await joinRoom(c,true);if(!V.room)return;
+      await sleep_(1300);
+      if(!V.room.peers().some(p=>!p.sameTab&&p.presence&&p.presence.host))return;
+      await leaveRoom();
+    }
+  },
   async jn(){readName();const c=(document.getElementById('cd').value||'').trim().toLowerCase();if(c.length!==4)return;await joinRoom(c,false)},
   gostart(){const go=Date.now();rp({go});startVS(go)},
   force(){checkGo(true);renderLobby()},

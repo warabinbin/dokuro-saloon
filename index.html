@@ -325,7 +325,7 @@ const WID={
    cv.onpointerdown=e=>{on=true;cv.setPointerCapture(e.pointerId);const[x,y]=pt(e);c.beginPath();c.moveTo(x,y);c.lineTo(x+.1,y);c.stroke()};
    cv.onpointermove=e=>{if(!on)return;const[x,y]=pt(e);c.lineTo(x,y);c.stroke()};
    cv.onpointerup=()=>{on=false};
-   const end=()=>{if(fin)return;fin=1;clearInterval(id);done({img:cv.toDataURL()})};
+   const end=()=>{if(fin)return;fin=1;clearInterval(id);done({img:cv.toDataURL('image/jpeg',.7)})};
    const id=setInterval(()=>{t--;const e=$('#tm');if(e)e.textContent='残り '+t+'秒';if(t<=0)end()},1000);S.tmr=id;
    $('#ok').onclick=end;
   });
@@ -589,7 +589,7 @@ function end(){
    Taps come back to the host, which checks who may press what. */
 const NET={on:false,host:false,room:null,code:'',phase:'',ep:0,seq:0,roster:[],me:-1,cur:null,proxy:new Set(),last:{all:null,priv:null},shownKey:'',err:''};
 function mqttRoom(){
-  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+  const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
   return{join:name=>new Promise((resolve,reject)=>{
     const id=Math.random().toString(36).slice(2,10),base='dokuro-saloon-bar/'+name+'/',state=new Map(),hs=new Set(),cs=[],subs=new Map(),seen=new Set();
     let done=false,cur={},tp=0,failed=0,lastErr='',to=0,hb=0;
@@ -643,13 +643,25 @@ const pidOf=i=>NET.roster[i];
 const waitHtml=i=>`<p class=k>オンライン</p><h2>${nm(i)}が操作中</h2><p class=muted>この画面は本人のスマホにだけ表示される。しばらく待つ。</p>`;
 /* host: publish a screen. aud = 'all' | player index | 'each' (every phone gets its own part) */
 function netShow(aud,html,o={}){
-  const seq=++NET.seq,mk=m=>({ep:NET.ep,seq,roster:NET.roster,...m}),room=NET.room;
+  const seq=++NET.seq,mk=m=>({ep:NET.ep,seq,roster:NET.roster,...m}),room=NET.room,pubs=[];
+  const P=(to,msg)=>{pubs.push({to,msg});room.pub(to==='all'?'s/all':'s/'+pidOf(to),msg,true)};
   const wait=o.wait||(typeof aud==='number'?waitHtml(aud):'');
   const cur=NET.cur={seq,aud,html,w:o.w||null,cb:o.cb||null,each:o.each||null,done:new Set(),res:{},expect:(o.expect||(o.each?Object.keys(o.each).filter(k=>o.each[k].w).map(Number):null)),wait};
-  if(aud==='all')room.pub('s/all',mk({aud,html}),true);
-  else if(aud==='each'){room.pub('s/all',mk({aud,html:wait}),true);Object.keys(o.each).forEach(i=>room.pub('s/'+pidOf(i),mk({aud,html:o.each[i].html||'',w:o.each[i].w||null}),true))}
-  else{room.pub('s/all',mk({aud,html:wait}),true);room.pub('s/'+pidOf(aud),mk({aud,html,w:o.w||null}),true)}
+  if(aud==='all')P('all',mk({aud,html}));
+  else if(aud==='each'){P('all',mk({aud,html:wait}));Object.keys(o.each).forEach(i=>P(+i,mk({aud,html:o.each[i].html||'',w:o.each[i].w||null})))}
+  else{P('all',mk({aud,html:wait}));P(aud,mk({aud,html,w:o.w||null}))}
+  NET.pubs=pubs;
   netHostView();
+}
+function netRepublish(){(NET.pubs||[]).forEach(p=>{p.msg.roster=NET.roster;delete p.msg.mid;NET.room.pub(p.to==='all'?'s/all':'s/'+pidOf(p.to),p.msg,true)})}
+/* a player whose phone reloaded comes back under a new id: match by name and hand over their seat */
+function netCheckRejoin(){
+  if(!NET.host||!NET.on||!NET.room)return;
+  const ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar),ids=new Set(ps.map(p=>p.peer));let ch=false;
+  ps.forEach(p=>{if(NET.roster.includes(p.peer))return;
+    const nm_=String(p.presence.name||'').slice(0,8),i=S.players.findIndex((pl,k)=>k>0&&pl.name===nm_&&!ids.has(NET.roster[k]));
+    if(i>0){NET.roster[i]=p.peer;ch=true}});
+  if(ch)netRepublish();
 }
 const netShowEach=(each,o)=>netShow('each','',{each,wait:o.wait,cb:o.cb,expect:o.expect});
 function netHostView(){
@@ -681,6 +693,7 @@ function netWDone(i,res){
   if(c.aud==='each'){if(!c.each[i]||!c.each[i].w||c.done.has(i))return;c.done.add(i);c.res[i]=res;if((c.expect||[]).every(k=>c.done.has(k))){const cb=c.cb;c.cb=null;cb&&cb(c.res)}return}
   if(c.aud===i&&c.cb){const cb=c.cb;c.cb=null;cb(res)}
 }
+const REMOTE_DENY=new Set(['start','resume','setn','netmenu','netback','netleave','netmk','netjn','netstart','g20']);
 function netHandle(pid,m,as){
   const c=NET.cur;if(!c||m.ep!==NET.ep||m.sid!==c.seq)return;
   const i=as!==undefined?as:NET.roster.indexOf(pid);if(i<0)return;
@@ -688,8 +701,9 @@ function netHandle(pid,m,as){
   if(m.act==='proxy'){if(i!==0)return;NET.proxy.add(+m.data.i);return netHostView()}
   if(c.aud==='each')return;
   if(typeof c.aud==='number'&&c.aud!==i)return;
+  if(!Object.prototype.hasOwnProperty.call(A,m.act)||typeof A[m.act]!=='function'||REMOTE_DENY.has(m.act))return;
   if(!allowed(m.act,i,m.data||{}))return;
-  const f=A[m.act];if(f)f({dataset:m.data||{}});
+  A[m.act]({dataset:m.data&&typeof m.data==='object'?m.data:{}});
 }
 function netClick(act,data){
   if(NET.host){const c=NET.cur,as=(typeof c.aud==='number'&&NET.proxy.has(c.aud))?c.aud:NET.me;netHandle(pidOf(0),{ep:NET.ep,sid:c.seq,act,data},as)}
@@ -724,7 +738,13 @@ async function netEnter(code,host,name){
   NET.room.presence({bar:1,name,t:Date.now(),host});
   if(host){NET.room.sub('a/host',m=>netHandle(m.from,m));NET.room.clear('s/all')}
   else{NET.room.sub('s/all',m=>netIn('all',m));NET.room.sub('s/'+NET.room.id,m=>netIn('priv',m))}
-  NET.room.onPeers(()=>{if(NET.phase==='lobby'&&!NET.on)renderNetLobby()});
+  NET.hostAt=Date.now();NET.lost=false;clearInterval(NET.lt);
+  NET.room.onPeers(()=>{if(NET.phase==='lobby'&&!NET.on)renderNetLobby();netCheckRejoin()});
+  NET.lt=setInterval(()=>{
+    if(!NET.room||NET.host)return;
+    if(NET.room.peers().some(p=>p.presence&&p.presence.host))NET.hostAt=Date.now();
+    else if(NET.on&&!NET.lost&&Date.now()-NET.hostAt>12000){NET.lost=true;NET.on=false;render(`<h2>幹事との接続が切れた</h2><p class=muted>幹事のスマホが閉じられたか、通信が切れた。幹事がページを開き直した場合は、同じ名前で入り直すと続きから戻れる。</p><button data-act=netleave>部屋を出る</button>`)}
+  },2000);
   renderNetLobby();
 }
 function renderNetLobby(){
@@ -732,11 +752,12 @@ function renderNetLobby(){
   const ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t);
   render(`<p class=k>部屋コード</p><div class=big style="font-size:48px;letter-spacing:.2em;color:var(--amber)">${esc(NET.code.toUpperCase())}</div><p class=muted>友だちにこのコードを伝えて、同じページから「オンライン → 入る」。</p>
   <div class=card>${ps.map(p=>`<div class=pl><span>${esc(p.presence.name||'?')}${p.presence.host?'(幹事)':''}</span><span>${p.sameTab?'あなた':''}</span></div>`).join('')||'<p class=muted>接続中…</p>'}</div>
+  ${(()=>{const h=ps.find(p=>p.presence.host);return !NET.host&&h&&h.presence.playing?'<div class=ev>ゲーム進行中。途中で切れた人は、同じ名前で入り直すと自動で復帰する。新しく入る人は終わるまで待つ。</div>':''})()}
   ${NET.host?`<button data-act=netstart ${ps.length<2?'disabled':''}>${ps.length<2?'2人以上で開始できる':'この人数で始める'}</button>`:'<p class=muted>幹事が始めるまで待機…</p>'}
   <p class=muted>接続:${NET.room.connected()?'OK':'NG'} / ${ps.length}人</p><button class=alt data-act=netleave>部屋を出る</button>`);
 }
 async function netLeave(){
-  clearInterval(NET.lt);try{clearTimeout(NET.bt);NET.room&&await NET.room.leave()}catch(e){}
+  clearInterval(NET.lt);NET.lost=false;try{clearTimeout(NET.bt);NET.room&&await NET.room.leave()}catch(e){}
   NET.room=null;NET.on=false;NET.host=false;NET.phase='';setup();
 }
 
@@ -747,12 +768,21 @@ const A={
   S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
  g1(){liar()},g20(){openInv()},
  netmenu(){netMenu()},netback(){setup()},netleave(){netLeave()},
- async netmk(){const nm_=netName(),c=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');await netEnter(c,true,nm_)},
+ async netmk(){
+  const nm_=netName(),sleep_=ms=>new Promise(r=>setTimeout(r,ms));
+  for(let t=0;t<4;t++){
+    const c=window.__code?(()=>{const v=window.__code;window.__code=null;return v})():Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.random()*31|0]).join('');
+    await netEnter(c,true,nm_);if(!NET.room)return;
+    await sleep_(1300);
+    if(!NET.room.peers().some(p=>!p.sameTab&&p.presence&&p.presence.bar&&p.presence.host))return;
+    try{await NET.room.leave()}catch(e){}NET.room=null;
+  }
+ },
  async netjn(){const nm_=netName(),c=(($('#ncd')||{}).value||'').trim().toLowerCase();if(c.length!==4)return;await netEnter(c,false,nm_)},
- netstart(){const ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t);if(ps.length<2)return;
+ netstart(){const now=Date.now(),ps=NET.room.peers().filter(p=>p.presence&&p.presence.bar&&(p.sameTab||now-p.updatedAt<10000)).sort((a,b)=>(b.presence.host?1:0)-(a.presence.host?1:0)||a.presence.t-b.presence.t).slice(0,8);if(ps.length<2)return;
   NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
-  NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
- netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);renderNetLobby()},
+  NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';NET.room.presence({playing:true});try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
+ netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);NET.room.presence({playing:false});renderNetLobby()},
  resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},g12(){sync()},
  rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11','g12'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
  cb(){S.cb&&S.cb()},
