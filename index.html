@@ -1,7 +1,28 @@
 <!doctype html>
+<html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ドクロ酒場</title>
+<meta name="description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta name="theme-color" content="#17120f">
+<link rel="canonical" href="https://warabinbin.github.io/dokuro-saloon/">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ドクロ酒場">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="ドクロ酒場 | 飲み会ゲーム集">
+<meta property="og:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta property="og:url" content="https://warabinbin.github.io/dokuro-saloon/">
+<meta property="og:image" content="https://warabinbin.github.io/dokuro-saloon/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ドクロ酒場 | 飲み会ゲーム集">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ドクロ酒場 | 飲み会ゲーム集">
+<meta name="twitter:description" content="スマホ1台を回しても、みんなのスマホでも遊べる飲み会ゲーム。嘘つきグラス、ダイスブラフ、お絵描きリレー、王様ゲーム、シンクロ連想など。2〜8人・無料・ログイン不要。">
+<meta name="twitter:image" content="https://warabinbin.github.io/dokuro-saloon/og.png">
+<title>ドクロ酒場 | 飲み会ゲーム集</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
 <style>
@@ -194,21 +215,33 @@ function liarReveal(){
 }
 
 /* ---- game 4: draw relay ---- */
-const DRAW=['猫','犬','富士山','寿司','ラーメン','自転車','飛行機','ゾウ','ギター','傘','時計','カレー','ロボット','雪だるま','カメラ','ペンギン',
-'リンゴ','バナナ','スイカ','ピザ','ハンバーガー','おにぎり','たこ焼き','ケーキ','アイスクリーム',
-'テレビ','冷蔵庫','電話','ベッド','椅子','机','ドア','窓','鍵','眼鏡','帽子','靴','Tシャツ',
-'太陽','月','星','雲','虹','雷','雪','花火','海','山','木','花','ひまわり',
-'キリン','ライオン','うさぎ','パンダ','カメ','魚','カエル','ヘビ','クジラ','イルカ','タコ','カニ','ハチ','チョウチョ','ニワトリ',
-'電車','バス','船','ロケット','パトカー','救急車','トラクター','ヘリコプター',
-'サッカーボール','野球バット','テニスラケット','バスケットゴール','ドラム','ピアノ','マイク',
-'ドラゴン','幽霊','宇宙人','サンタクロース','忍者','侍','海賊','魔女','ドクロ',
-'城','橋','東京タワー','ピラミッド','灯台','観覧車','信号機',
-'カラオケ','乾杯','ビール','ワイングラス','枝豆'];
+/* お題: 「表示|別の書き方|…」。回答は表記ゆれ(ひらがな/カタカナ/漢字)を吸収して一致判定する */
+const DRAW=[
+/* 動物 */
+'猫|ねこ|キャット','犬|いぬ|ドッグ|わんこ','ゾウ|象|ぞう','キリン|きりん','うさぎ|兎|ウサギ','カメ|亀|かめ','ペンギン','ライオン','パンダ','イルカ|いるか','クジラ|鯨|くじら','タコ|蛸|たこ','カニ|蟹|かに','ハチ|蜂|はち','チョウチョ|蝶|ちょうちょ|蝶々|ちょう','ニワトリ|鶏|にわとり|とり','ヘビ|蛇|へび','カエル|蛙|かえる','魚|さかな|うお|フィッシュ','サル|猿|さる','牛|うし|ウシ','豚|ぶた|ブタ','馬|うま|ウマ','羊|ひつじ|ヒツジ','クマ|熊|くま','トラ|虎|とら','ネズミ|鼠|ねずみ|ハムスター','コウモリ|蝙蝠|こうもり','ワニ|鰐|わに','サメ|鮫|さめ','ハト|鳩|はと','カラス|烏|からす','フクロウ|梟|ふくろう','クモ|蜘蛛|くも','カタツムリ|かたつむり|でんでんむし','カブトムシ|兜虫|かぶとむし','アリ|蟻|あり','イカ|烏賊|いか','エビ|海老|えび','ヒヨコ|ひよこ','カンガルー','ゴリラ','シマウマ|しまうま','ラクダ|らくだ','アヒル|あひる','キツネ|狐|きつね','タヌキ|狸|たぬき','シカ|鹿|しか','イノシシ|猪|いのしし','コアラ','ラッコ','アザラシ','トナカイ|となかい','ハリネズミ|はりねずみ','リス|りす','モグラ|もぐら','ホタル|蛍|ほたる','トンボ|蜻蛉|とんぼ','セミ|蝉|せみ','ミミズ|みみず','ナマケモノ|なまけもの','フラミンゴ','クジャク|孔雀|くじゃく','ダチョウ|駝鳥|だちょう','オウム|おうむ','タツノオトシゴ|たつのおとしご','クラゲ|くらげ','ヒトデ|ひとで',
+/* 食べ物 */
+'寿司|すし|おすし|鮨','ラーメン','カレー|かれー|カレーライス','ピザ','ハンバーガー|バーガー','おにぎり|おむすび|オニギリ','たこ焼き|たこやき|タコ焼き','ケーキ','アイスクリーム|アイス','リンゴ|林檎|りんご|アップル','バナナ','スイカ|西瓜|すいか','ブドウ|葡萄|ぶどう','イチゴ|苺|いちご','ミカン|蜜柑|みかん','パン','ご飯|ごはん|ライス|お米|米|こめ','納豆|なっとう','味噌汁|みそしる|おみそ汁','天ぷら|てんぷら|天麩羅','そば|蕎麦|ソバ','うどん|ウドン','餃子|ぎょうざ|ギョーザ|ギョウザ','唐揚げ|からあげ|から揚げ|唐あげ','焼き鳥|やきとり|焼鳥','刺身|さしみ|お刺身','卵|たまご|エッグ|玉子','目玉焼き|めだまやき','チョコレート|チョコ','ドーナツ','クッキー','プリン','パフェ','お好み焼き|おこのみやき','焼きそば|やきそば','オムライス','ステーキ','サラダ','スパゲッティ|パスタ|スパゲティ','サンドイッチ|サンド','ホットドッグ','ポテト|フライドポテト|じゃがいも|ジャガイモ','トマト','ニンジン|人参|にんじん','ピーマン','キャベツ','キュウリ|胡瓜|きゅうり','ナス|茄子|なす|なすび','トウモロコシ|とうもろこし|コーン','枝豆|えだまめ','梅干し|うめぼし|梅干','おでん','鍋|なべ|お鍋','たい焼き|たいやき|鯛焼き','わたあめ|綿あめ|綿菓子|わたがし','かき氷|かきごおり','焼肉|やきにく|焼き肉','しゃぶしゃぶ','すき焼き|すきやき','とんかつ|トンカツ|豚カツ','コロッケ','肉まん|にくまん','チーズ','バター','ソーセージ|ウインナー','ベーコン','キムチ','春巻き|はるまき','餅|もち|お餅','団子|だんご','大福|だいふく','せんべい|煎餅','ガム','飴|あめ|キャンディ|アメ','コーヒー|珈琲','紅茶|こうちゃ|ティー','牛乳|ぎゅうにゅう|ミルク','おでん種|だいこん|大根','レモン','桃|もも|モモ','梨|なし|ナシ','柿|かき|カキ','栗|くり|クリ','パイナップル','メロン','さくらんぼ|サクランボ|チェリー','焼き芋|やきいも|さつまいも',
+/* 乗り物・道具 */
+'自転車|じてんしゃ|チャリ','飛行機|ひこうき','電車|でんしゃ|列車','船|ふね|ボート','ロケット','バス','パトカー','救急車|きゅうきゅうしゃ','トラクター','ヘリコプター|ヘリ','新幹線|しんかんせん','バイク|オートバイ','タクシー','トラック','消防車|しょうぼうしゃ','潜水艦|せんすいかん','気球|ききゅう|熱気球','ソリ|そり','一輪車|いちりんしゃ','スケートボード|スケボー','傘|かさ|アンブレラ','時計|とけい|クロック','カメラ|写真機','ギター','ピアノ','ドラム','マイク','バイオリン','トランペット','太鼓|たいこ','ハサミ|はさみ|鋏','ほうき|箒|ホウキ','メガネ|眼鏡|めがね','帽子|ぼうし|ハット|キャップ','靴|くつ|シューズ','Tシャツ|ティーシャツ|シャツ','ネクタイ','手袋|てぶくろ','マフラー','リュック|リュックサック|バックパック','財布|さいふ','鍵|かぎ|カギ|キー','電話|でんわ|スマホ|携帯','テレビ|てれび|TV','冷蔵庫|れいぞうこ','洗濯機|せんたくき','掃除機|そうじき','扇風機|せんぷうき','エアコン','ドライヤー','アイロン','電球|でんきゅう|ライト','ろうそく|ロウソク|蝋燭|キャンドル','ベッド','椅子|いす|イス|チェア','机|つくえ|デスク','ドア|扉|とびら','窓|まど|ウィンドウ','階段|かいだん','はしご|梯子','コップ|グラス','ワイングラス','ビール|ジョッキ|ビールジョッキ','徳利|とっくり','お箸|おはし|箸|はし','フォーク','スプーン','ナイフ','フライパン','やかん|ヤカン','包丁|ほうちょう','鉛筆|えんぴつ','消しゴム|けしごむ','定規|じょうぎ','本|ほん|ブック','ノート','ハンマー|金槌|かなづち','のこぎり|ノコギリ','スコップ','バケツ','ホース','シャワー','歯ブラシ|はぶらし','石鹸|せっけん|ソープ','タオル','ぬいぐるみ|クマのぬいぐるみ','風船|ふうせん|バルーン','凧|たこ|カイト|凧揚げ','プレゼント|贈り物|ギフト','ダイス|サイコロ','トランプ',
+/* 自然・場所 */
+'太陽|たいよう|おひさま','月|つき|ムーン','星|ほし|スター','雲|くも|クラウド','虹|にじ|レインボー','雷|かみなり|カミナリ','雪|ゆき|スノー','雪だるま|ゆきだるま','花火|はなび','海|うみ|シー','山|やま|マウンテン','木|き|ツリー|樹','花|はな|フラワー','ひまわり|向日葵|ヒマワリ','チューリップ','桜|さくら|サクラ','紅葉|もみじ|モミジ','火山|かざん','島|しま|アイランド','川|かわ|リバー','滝|たき|ウォーターフォール','砂漠|さばく|デザート','洞窟|どうくつ|ほら穴','地球|ちきゅう|アース','土星|どせい','流れ星|ながれぼし|流星','台風|たいふう|竜巻|たつまき','富士山|ふじさん|ふじ','学校|がっこう|スクール','病院|びょういん','遊園地|ゆうえんち','居酒屋|いざかや','温泉|おんせん','動物園|どうぶつえん','水族館|すいぞくかん','図書館|としょかん','駅|えき|ステーション','空港|くうこう','神社|じんじゃ','お寺|おてら|寺|てら','城|しろ|お城|キャッスル','橋|はし|ブリッジ','東京タワー|とうきょうタワー','ピラミッド','灯台|とうだい','観覧車|かんらんしゃ','信号機|しんごうき|信号|しんごう','ジェットコースター|絶叫マシン','メリーゴーランド|メリーゴーラウンド','テント','家|いえ|ハウス|おうち','マンション','ビル|ビルディング','公園|こうえん','プール','ビーチ|砂浜|すなはま','鳥居|とりい','ポスト|郵便ポスト','自動販売機|じどうはんばいき|自販機|じはんき','コンビニ',
+/* スポーツ・遊び */
+'サッカー|サッカーボール','野球|やきゅう|ベースボール','テニス|テニスラケット','バスケットボール|バスケ|バスケットゴール','バレーボール|バレー','ゴルフ','ボウリング','スキー','スノーボード','水泳|すいえい|泳ぎ|スイミング','卓球|たっきゅう|ピンポン','柔道|じゅうどう','相撲|すもう','マラソン','縄跳び|なわとび','ブランコ','滑り台|すべりだい','シーソー','けん玉|けんだま','こま|コマ|独楽','カラオケ','乾杯|かんぱい|チアーズ','ダンス|踊り|おどり','釣り|つり|フィッシング','キャンプ','登山|とざん|山登り','ヨガ','ガチャガチャ|ガチャ|カプセル',
+/* 人・職業・空想 */
+'医者|いしゃ|お医者さん|ドクター','警察官|けいさつかん|おまわりさん|警官','消防士|しょうぼうし','先生|せんせい|教師','美容師|びようし','料理人|りょうりにん|シェフ|コック','パイロット','宇宙飛行士|うちゅうひこうし','サラリーマン|会社員','忍者|にんじゃ','侍|さむらい|サムライ','海賊|かいぞく|パイレーツ','魔女|まじょ|ウィッチ','幽霊|ゆうれい|おばけ|お化け','宇宙人|うちゅうじん|エイリアン','サンタクロース|サンタ','ドラゴン|竜|りゅう|龍','ドクロ|髑髏|どくろ|スカル','ロボット|ろぼっと','天使|てんし|エンジェル','悪魔|あくま|デビル','王様|おうさま|キング','お姫様|おひめさま|姫|プリンセス','妖精|ようせい|フェアリー','ゾンビ','吸血鬼|きゅうけつき|ドラキュラ|ヴァンパイア','雪女|ゆきおんな','河童|かっぱ|カッパ','天狗|てんぐ|テング','ユニコーン','赤ちゃん|あかちゃん|ベビー','おじいさん|おじいちゃん','おばあさん|おばあちゃん',
+/* 体・その他 */
+'手|て|ハンド','足|あし|フット','目|め|アイ','口|くち|マウス','耳|みみ|イヤー','鼻|はな|ノーズ','ハート|心臓|しんぞう','骨|ほね|ボーン','歯|は|ツース','ひげ|髭|ヒゲ|おひげ','かつら|カツラ|ウィッグ','指輪|ゆびわ|リング','王冠|おうかん|クラウン','宝箱|たからばこ|宝','地図|ちず|マップ','旗|はた|フラッグ','爆弾|ばくだん|ボム','剣|けん|ソード','盾|たて|シールド','弓矢|ゆみや|弓','魔法の杖|まほうのつえ|杖|つえ','ランプ|魔法のランプ','鏡|かがみ|ミラー','電池|でんち|バッテリー','コンセント|プラグ','ごみ箱|ゴミ箱|ごみばこ','トイレ|便器|ベンザ','お風呂|おふろ|バスタブ|湯船','布団|ふとん|ベッド','枕|まくら|ピロー','カーテン','絵|え|絵画|ペイント','ピエロ|道化師','サングラス','マスク','お守り|おまもり','おみくじ','ビール瓶|ビン|瓶|びん','缶|かん|缶ジュース|カン','ペットボトル','レジ袋|ふくろ|袋|ビニール袋',
+];
 const COL=['#f0a63a','#4aa3d8','#5fae7a','#e0553a','#c78bff','#f3e9dc','#ffd23f'];
 const chain=g=>`<p class=k>お題「${g.topic}」からの流れ</p><div class=row style="gap:6px">${g.imgs.map((m,i)=>`<img src="${m}" alt="${i+1}人目の絵" style="flex:0 0 31%;max-width:31%;border-radius:8px">`).join('')}</div>`;
+/* shuffled deck per night: nothing repeats until the whole list has been used */
+function deal(key,list){S.deck=S.deck||{};if(!S.deck[key]||!S.deck[key].length)S.deck[key]=[...list].sort(()=>Math.random()-.5);return S.deck[key].pop()}
+const normAns=s=>String(s).normalize('NFKC').toLowerCase().replace(/[\s・ー\-~〜!?！？。、,.「」『』()（）]/g,'').replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+const matchAns=(t,acc)=>{const n=normAns(t);return !!n&&acc.some(a=>normAns(a)===n)};
 function draw(){
   const n=N();S.dans=Math.random()*n|0;
-  S.g={a:S.dans,topic:pick(DRAW),drawers:[...Array(n).keys()].filter(i=>i!==S.dans).sort(()=>Math.random()-.5),imgs:[]};
+  const te=deal('draw',DRAW).split('|');
+  S.g={a:S.dans,topic:te[0],accept:te,drawers:[...Array(n).keys()].filter(i=>i!==S.dans).sort(()=>Math.random()-.5),imgs:[]};
   go(`<p class=k>お絵描きリレー</p><h2>${nm(S.g.a)}が回答者</h2><p class=k>描く順(ランダム): ${S.g.drawers.map(i=>nm(i)).join(' → ')}</p><p>お題を知るのは最初の描き手だけ。2人目以降は前の人の絵を見て、白紙に描き直す(1人20秒)。最後の絵を見て回答者が当てる。</p>
   <p class=muted>当たれば回答者が描き手を1人指名。外れたら回答者と最後の描き手が飲む。回答者は画面を見ない。</p>${nextBtn('始める')}`);
   S.cb=()=>drawLoop(0);
@@ -219,9 +252,14 @@ function drawLoop(k){
   pass(d,'お絵描き '+(k+1)+'/'+g.drawers.length,()=>askW(d,'draw',{topic:k===0?g.topic:null,prev:k>0?g.imgs[k-1]:null,secs:20},res=>{g.imgs[k]=res.img;drawLoop(k+1)},`<p class=k>お絵描きリレー</p><h2>${nm(d)}が描いている</h2><p class=muted>回答者は見ないこと。</p>`));
 }
 function guess(){
-  const g=S.g,html=`<h2>この絵はなに?</h2><img src="${g.imgs[g.imgs.length-1]}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center"><p class=muted>回答者は声に出して答える。判定は全員で。</p>
-  <button class=grn data-act=dwin>正解</button><button class=red data-act=dlose>不正解</button>`;
-  if(NET.on)go(html);else pass(g.a,'回答者',()=>go(html));
+  const g=S.g,img=g.imgs[g.imgs.length-1],pic=`<img src="${img}" alt="最後の絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`;
+  pass(g.a,'回答者',()=>askW(g.a,'text',{q:'この絵はなに?',img,max:20,ph:'答えを入力'},res=>judgeGuess(res.text),`<h2>この絵はなに?</h2>${pic}<p class=muted>${nm(g.a)}が回答中…</p>`));
+}
+/* auto-judge: spelling variants (kana / katakana / kanji) are folded together; a human can still overrule a synonym */
+function judgeGuess(t){
+  const g=S.g;g.said=t;
+  if(matchAns(t,g.accept))return A.dwin();
+  go(`<h2 class=lose>残念…</h2><p>${nm(g.a)}の回答「${esc(t)}」</p><p class=muted>お題は「${esc(g.topic)}」。言い換えで合っていたら「正解にする」を押す。</p><button class=grn data-act=dwin>正解にする</button><button class=red data-act=dlose>不正解で進む</button>`);
 }
 
 /* ---- missions ---- */
@@ -273,6 +311,10 @@ function miniResult(){
 /* widgets: small self-contained screens that run on whichever phone shows them and hand back one result */
 const wfin=(done,res)=>{const r=$('#res');if(r)r.innerHTML=`<p class=big style="font-size:30px;padding:8px 0">${res.label}</p><button id=wnext>次へ</button>`;const b=$('#wnext');if(b)b.onclick=()=>done(res)};
 const WID={
+ text:(p,done)=>render(`${p.img?`<img src="${p.img}" alt="絵" style="width:100%;max-width:360px;border-radius:12px;align-self:center">`:''}<h2>${esc(p.q)}</h2><input id=tx maxlength=${p.max||20} placeholder="${esc(p.ph||'ここに入力')}" autocomplete=off><button id=sub>決定</button>`,()=>{
+  const fin=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}done({text:v})};
+  $('#sub').onclick=fin;$('#tx').onkeydown=e=>{if(e.key==='Enter')fin()};
+ }),
  draw:(p,done)=>{
   render((p.topic?`<p class=k>お題(あなただけが知る)</p><h2>${esc(p.topic)}</h2>`:`<p class=k>前の人の絵(これを描く)</p><img src="${p.prev}" alt="前の人の絵" style="width:55%;max-width:200px;border-radius:10px;align-self:center">`)
    +`<p id=tm class=muted>残り ${p.secs}秒</p><canvas id=cv width=320 height=320></canvas><button id=ok>描き終わり</button>`,()=>{
@@ -351,7 +393,7 @@ const GAMES=[
  ['会話・ブラフ',[['g1','嘘つきグラス','嘘を見抜け',2],['g5','ダイスブラフ','ダウトの駆け引き',2]]],
  ['みんなで協力',[['g6','ならべ酒場','数字を言わず並べる',3],['g4','お絵描きリレー','伝言お絵描き',3]]],
  ['盛り上がる',[['g7','爆弾リレー','持ってたら爆発',2],['g9','おでこクイズ','言わずに伝える',2],['g8','王様ゲーム','命令は絶対',3]]],
- ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2]]],
+ ['空気・運',[['g10','犯人は誰だ','みんなで指名',3],['g11','ナンバー乾杯','かぶるな',2],['g12','シンクロ連想','答えを一致させろ',2]]],
  ['アクション',[['g20','ドクロ・インベーダー','協力シューティング(結果が反映される)',1]]],
  ['その他',[['mis','ミッション','秘密の指令',2],['g3','幕間ミニゲーム','サクッと',2],['rand','おまかせ','迷ったらこれ',2]]]];
 const menu=()=>GAMES.map(([t,a])=>`<p class=k>${t}</p><div class=row>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')).map(x=>`<button class="${x[0]==='g1'?'':x[0]==='mis'?'grn':'alt'}" data-act=${x[0]}>${x[1]}<span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('');
@@ -476,6 +518,34 @@ function numReveal(){
   let card='';if(w>=0){const c=pick(CARDS);S.players[w].cards.push(c);card=c}
   go(`<p class=k>結果</p><h2>${w>=0?nm(w)+'の勝ち':'勝者なし'}</h2><div class=card>${g.picks.map((v,i)=>`<div class=pl><span>${nm(i)}</span><b class="${i===w?'win':cnt[v]>1?'lose':''}">${v}</b></div>`).join('')}</div>
   <p>${w>=0?`${nm(w)}はカード「${card}」を獲得。`:''}かぶった人はひと口。</p>${nextBtn()}`);S.cb=done;
+}
+
+/* ---- sync: answer matching ---- */
+const SYNC=['夏といえば?','冬といえば?','居酒屋の定番といえば?','コンビニで買うものといえば?','赤いものといえば?','白いものといえば?','黄色いものといえば?','丸いものといえば?','動物といえば?','果物といえば?','野菜といえば?','お酒といえば?','おつまみといえば?','学校といえば?','朝といえば?','旅行といえば?','ラーメンの具といえば?','スポーツといえば?','楽器といえば?','お正月といえば?','おやつといえば?','宇宙といえば?','海といえば?','山といえば?','恋愛といえば?','お金といえば?','休日といえば?','会社といえば?','カレーの具といえば?','寿司ネタといえば?','ファストフードといえば?','国といえば?','色といえば?','乗り物といえば?','アニメの主人公といえば?','雨の日といえば?','誕生日といえば?','結婚式といえば?','デートといえば?','二日酔いといえば?'];
+function sync(){
+  S.g={q:deal('sync',SYNC),ans:[]};
+  go(`<p class=k>シンクロ連想</p><h2>${esc(S.g.q)}</h2><p>全員が${NET.on?'同時に':'順番に'}、思いついた言葉を1つ書く。同じ答えの人がいればセーフ。誰とも一致しなかった人がひと口。全員一致なら全員セーフでカード。ひらがな/カタカナ/漢字の違いは同じとみなす。</p>${nextBtn('書き始める')}`);
+  S.cb=syncStart;
+}
+function syncStart(){
+  const g=S.g;
+  if(NET.on){const each={};S.players.forEach((_,i)=>each[i]={w:{name:'text',params:{q:g.q,max:10,ph:'1語で'}}});
+    netShowEach(each,{wait:`<p class=k>シンクロ連想</p><h2>${esc(g.q)}</h2><p class=muted>各自のスマホで入力中。全員が終わるまで待つ。</p>`,cb:res=>{g.ans=S.players.map((_,i)=>res[i].text);syncReveal()}})}
+  else syncLoop(0);
+}
+function syncLoop(i){
+  const g=S.g;if(i>=N())return syncReveal();
+  pass(i,'シンクロ連想',()=>askW(i,'text',{q:g.q,max:10,ph:'1語で'},res=>{g.ans[i]=res.text;syncLoop(i+1)}));
+}
+function syncReveal(){
+  const g=S.g,n=N(),keys=g.ans.map(normAns),cnt={};keys.forEach(k=>cnt[k]=(cnt[k]||0)+1);
+  const matched=keys.map(k=>cnt[k]>1),allSame=new Set(keys).size===1,none=!matched.some(Boolean);
+  let msg='';
+  if(allSame){const w=Math.random()*n|0,c=pick(CARDS);S.players[w].cards.push(c);msg=`<p class=win>全員一致! 全員セーフ。ボーナスで${nm(w)}にカード「${c}」</p>`}
+  else if(none){S.players.forEach((_,i)=>drink(i,1,'シンクロ連想で全員バラバラ'));msg=`<p class=lose>全員バラバラ… 全員ひと口</p>`}
+  else{const lone=g.ans.map((_,i)=>i).filter(i=>!matched[i]);lone.forEach(i=>drink(i,1,'シンクロ連想で一致しなかった'));msg=`<p>一致した人はセーフ。ひと口: ${lone.map(nm).join('、')||'なし'}</p>`}
+  go(`<p class=k>結果</p><h2>${esc(g.q)}</h2><div class=card>${g.ans.map((a,i)=>`<div class=pl><span>${nm(i)}</span><b class="${matched[i]?'win':'lose'}">${esc(a)}</b></div>`).join('')}</div>${msg}${nextBtn()}`);
+  S.cb=done;
 }
 
 /* ---- king game ---- */
@@ -683,8 +753,8 @@ const A={
   NET.roster=ps.map(p=>p.peer);S.players=ps.map(p=>({name:String(p.presence.name||'?').slice(0,8),lives:3,drinks:0,cards:[],mission:pick(MIS)}));S.n=S.players.length;S.round=0;S.log=[];S.narr=-1;S.evShown=-1;
   NET.on=true;NET.host=true;NET.me=0;NET.ep=Date.now();NET.seq=0;NET.proxy=new Set();NET.phase='game';try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}hub()},
  netlobby(){NET.seq++;NET.room.pub('s/all',{ep:NET.ep,seq:NET.seq,kind:'lobby',roster:NET.roster},true);NET.on=false;NET.phase='lobby';NET.proxy=new Set();clearTimeout(NET.bt);renderNetLobby()},
- resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},
- rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
+ resume(){if(load())hub();else setup()},g4(){draw()},mis(){misMenu()},g3(){mini(pick(Object.keys(MINI).filter(k=>!MINI[k].long)))},g5(){dice()},g6(){ito()},g7(){bomb()},g8(){king()},g9(){mini('heads')},g10(){who()},g11(){numb()},g12(){sync()},
+ rand(){const a=['g1','g5','g6','g4','g7','g9','g8','g10','g11','g12'].filter(k=>N()>=(['g6','g4','g8','g10'].includes(k)?3:2));A[pick(a)]()},end,back:hub,reset(){NET.on?A.netlobby():setup()},
  cb(){S.cb&&S.cb()},
  vote(e){S.g.votes.push([S.g.voters[S.g.k2],+e.dataset.v]);voteLoop(S.g.k2+1)},
  nom(e){drink(+e.dataset.i,S.g.nomN,'嘘つきグラスで指名された(×'+S.g.nomN+')');done()},
@@ -705,10 +775,10 @@ const A={
  kre(){kingMain()},kopen(){kingOpen()},
  kref(e){drink(+e.dataset.i,1,'王様の命令を拒否');kingOpen()},
  madok(){voteLoop(S.g.k2+1)},
- dwin(){const g=S.g;go(`<h2>正解は「${g.topic}」</h2><p class=win>${nm(g.a)}の勝ち。描き手を1人指名してひと口</p><div class=row>${g.drawers.map(i=>`<button class=red data-act=dnom data-i=${i}>${nm(i)}</button>`).join('')}</div>${chain(g)}`)},
+ dwin(){const g=S.g;go(`<h2>正解は「${g.topic}」</h2>${g.said?`<p class=muted>${nm(g.a)}の回答「${esc(g.said)}」</p>`:''}<p class=win>${nm(g.a)}の勝ち。描き手を1人指名してひと口</p><div class=row>${g.drawers.map(i=>`<button class=red data-act=dnom data-i=${i}>${nm(i)}</button>`).join('')}</div>${chain(g)}`)},
  dnom(e){drink(+e.dataset.i,1,'お絵描きで指名された');done()},
  dlose(){const g=S.g,l=g.drawers[g.drawers.length-1];drink(g.a,1,'お絵描きで外した');drink(l,1,'お絵描きの最後の描き手');
-  go(`<h2>正解は「${g.topic}」</h2><p class=lose>${nm(g.a)}と最後の描き手の${nm(l)}がひと口</p>${chain(g)}${nextBtn()}`);S.cb=done},
+  go(`<h2>正解は「${g.topic}」</h2>${g.said?`<p class=muted>${nm(g.a)}の回答「${esc(g.said)}」</p>`:''}<p class=lose>${nm(g.a)}と最後の描き手の${nm(l)}がひと口</p>${chain(g)}${nextBtn()}`);S.cb=done},
  mview(e){const i=+e.dataset.i;pass(i,'ミッション確認',()=>{S.cb=misMenu;go(`<h2>あなたの指令</h2><div class=card><h3>${S.players[i].mission}</h3></div><p class=muted>悟られずに達成しよう</p>${nextBtn('伏せて戻る')}`)})},
  mdone(e){const i=+e.dataset.i;pass(i,'達成報告',()=>go(`<h2>達成した?</h2><div class=card><h3>${S.players[i].mission}</h3></div><button class=grn data-act=mok data-i=${i}>達成した</button><button class=alt data-act=mis>まだ</button>`))},
  mok(e){const p=S.players[+e.dataset.i],c=pick(CARDS);p.cards.push(c);S.log.push(p.name+': ミッション達成');newMis(p);S.cb=misMenu;go(`<h2>達成!</h2><p class=win>カード「${c}」を獲得。新しい指令は「確認」から。</p>${nextBtn()}`)},
@@ -732,7 +802,7 @@ function abortGame(){
 $('#gback').addEventListener('click',()=>{$('#mtxt').textContent=NET.on?'全員の画面がゲーム選択に戻る。ここまでの結果は残る。':'ここまでの結果は残る。ラウンドは進まない。';$('#modal').hidden=false});
 $('#mno').addEventListener('click',()=>{$('#modal').hidden=true});
 $('#mok2').addEventListener('click',abortGame);
-['g1','g3','g4','g5','g6','g7','g8','g9','g10','g11','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
+['g1','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12','mis'].forEach(k=>{const f=A[k];A[k]=function(){S.inGame=true;return f.apply(this,arguments)}});
 $('#app').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
   if(NET.on)return netClick(act,{...b.dataset});
@@ -742,5 +812,5 @@ $('#app').addEventListener('click',e=>{
   const back=new URLSearchParams(location.search).get('back')==='1';
   if(back&&load()){try{history.replaceState(null,'',location.pathname)}catch(e){}importInv();hub()}else setup();
 })();
-window.__bar={S,A,NET,WID};
+window.__bar={S,A,NET,WID,matchAns,normAns,DRAW};
 </script>
