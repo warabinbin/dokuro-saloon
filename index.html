@@ -102,6 +102,9 @@ canvas{max-width:400px}
 .tile .sub{font-size:12px;opacity:.72}
 .tile.wide{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px;min-height:72px}
 .tile.wide .ic{font-size:38px} .tile.wide b{flex:1 1 40%;font-size:19px} .tile.wide .sub{flex:1 0 100%;padding-left:50px;margin-top:-4px}
+.inv-f,#invf{position:fixed;inset:0;z-index:60;background:#0e0b09;display:flex;flex-direction:column}
+#invf iframe{flex:1;border:0;width:100%}
+.invbar{padding:calc(6px + env(safe-area-inset-top,0px)) 10px 6px;display:flex;justify-content:flex-end;background:#0e0b09}
 .bmst{font-size:13px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 10px;align-self:center;max-width:360px}
 .bmpad{display:flex;justify-content:space-between;align-items:center;gap:12px;align-self:center;width:100%;max-width:360px;touch-action:none;user-select:none}
 .dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:4px}
@@ -242,6 +245,21 @@ function importInv(){
     S.note=`WAVE ${r.wave} / ${r.score}点。`+S.players.map((p,i)=>r.drinks[i]>0?`${p.name} ×${r.drinks[i]}`:'').filter(Boolean).join('、')+' がひと口';
     save();
   }catch(e){}
+}
+/* online: every phone opens the invaders page inside this one (so the room connection stays alive) and joins a versus room named after the bar's room code */
+function invOnline(){
+  go(`<p class=k>ドクロ・インベーダー</p><h2>みんなで対戦</h2>
+  <div class=card><p>全員が下のボタンを押すと、同じ対戦ルームに自動で入る。2人以上そろったら、幹事(部屋を作った人)が「対戦開始」を押す。</p>
+  <p class=muted>敵を倒すと相手の画面に敵が降り注ぐ。最後に生き残った人が勝ち。結果はこの酒場には自動反映されないので、1位は誰か1人を指名・最下位は追加でひと口、を手動で。</p></div>
+  <button data-act=invopen>インベーダーを開く</button>`);
+}
+function invOpen(){
+  if(document.getElementById('invf'))return;
+  let nm_='';try{nm_=localStorage.getItem('dk_name')||''}catch(e){}
+  try{const me=NET.room.peers().find(x=>x.sameTab);if(me&&me.presence&&me.presence.name)nm_=me.presence.name}catch(e){}
+  const q=new URLSearchParams({auto:NET.code||'',name:nm_,host:NET.host?'1':'0'}),d=document.createElement('div');
+  d.id='invf';d.innerHTML=`<div class=invbar><button type=button class="alt sm" id=invx>× 酒場に戻る</button></div><iframe title="ドクロ・インベーダー" src="invaders/?${q}" allow="autoplay"></iframe>`;
+  document.body.appendChild(d);document.getElementById('invx').onclick=()=>d.remove();
 }
 function openInv(){
   save();
@@ -582,7 +600,7 @@ const ICON={
  'アクション':glyph('<path d="m18 2-13 17h9l-1 11 14-18h-9l0-10Z"/>',16),
  'その他':glyph('<path d="m16 3 2.5 8.5L27 14l-8.5 2.5L16 25l-2.5-8.5L5 14l8.5-2.5L16 3Z"/><path d="m25 22 1.5 4.5L31 28l-4.5 1.5L25 32l-1.5-2.5L19 28l4.5-1.5L25 22Z"/>',16)
 };
-const menu=()=>{let n=0;return GAMES.map(([t,a])=>`<p class=k>${SECT[t]||''} ${t}</p><div class=tiles>${a.filter(x=>N()>=x[3]&&!(NET.on&&x[0]==='g20')&&!(!NET.on&&x[0]==='g13')).map(x=>`<button class="tile${x[0]==='g1'||x[0]==='rand'||x[0]==='g20'?' wide':''}" style="--t:${TINT[x[0]]||'#f0a63a'};--d:${(n++)*35}ms" data-act=${x[0]}><i class=ic>${ICON[x[0]]||ICON.g1}</i><b>${x[1]}</b><span class=sub>${x[2]}</span></button>`).join('')}</div>`).join('')};
+const menu=()=>{let n=0;return GAMES.map(([t,a])=>`<p class=k>${SECT[t]||''} ${t}</p><div class=tiles>${a.filter(x=>N()>=x[3]&&!(!NET.on&&x[0]==='g13')).map(x=>`<button class="tile${x[0]==='g1'||x[0]==='rand'||x[0]==='g20'?' wide':''}" style="--t:${TINT[x[0]]||'#f0a63a'};--d:${(n++)*35}ms" data-act=${x[0]}><i class=ic>${ICON[x[0]]||ICON.g1}</i><b>${x[1]}</b><span class=sub>${x[0]==='g20'&&NET.on?'みんなで対戦(各自のスマホで)':x[2]}</span></button>`).join('')}</div>`).join('')};
 /* おまかせ: light up the tiles like a roulette, then open the one it lands on (same as tapping it) */
 let ROUL=0;
 function roulette(b){
@@ -1225,7 +1243,7 @@ function netWDone(i,res){
   if(c.aud==='each'){if(!c.each[i]||!c.each[i].w||c.done.has(i))return;c.done.add(i);c.res[i]=res;if((c.expect||[]).every(k=>c.done.has(k))){const cb=c.cb;c.cb=null;cb&&cb(c.res)}return}
   if(c.aud===i&&c.cb){const cb=c.cb;c.cb=null;cb(res)}
 }
-const REMOTE_DENY=new Set(['start','resume','setn','netmenu','netback','netleave','netmk','netjn','netstart','g20']);
+const REMOTE_DENY=new Set(['start','resume','setn','netmenu','netback','netleave','netmk','netjn','netstart']);
 function netHandle(pid,m,as){
   const c=NET.cur;if(!c||m.ep!==NET.ep||m.sid!==c.seq)return;
   const i=as!==undefined?as:NET.roster.indexOf(pid);if(i<0)return;
@@ -1298,7 +1316,7 @@ const A={
  setn(e){readNames();S.n=+e.dataset.i;setupLocal()},local(){setupLocal()},
  start(){readNames();try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
   S.players=Array.from({length:S.n},(_,i)=>({name:(S.names[i]||'').trim()||'プレイヤー'+(i+1),g:0,drunk:0,drinks:0,cards:[],mission:pick(MIS)}));S.round=0;S.log=[];S.narr=-1;S.evShown=-1;hub()},
- g1(){liar()},g20(){openInv()},
+ g1(){liar()},g20(){NET.on?invOnline():openInv()},
  netmenu(){netMenu()},netback(){setup()},netleave(){netLeave()},
  async netmk(){
   const nm_=netName(),sleep_=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1366,6 +1384,7 @@ $('#app').addEventListener('click',e=>{
   if(act==='savePoster'){savePosterImage(false);return}
   if(act==='sharePoster'){savePosterImage(true);return}
   if(act==='rand'){roulette(b);return}
+  if(act==='invopen'){invOpen();return}
   if(NET.on)return netClick(act,{...b.dataset});
   if(A[act])A[act](b);
 });

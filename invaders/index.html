@@ -787,6 +787,8 @@ fit(false);
 showMain();
 lastT=performance.now();raf=requestAnimationFrame(loop);
 const p2p=()=>window.mqtt?mqttRoom():null;
-try{const c=window.claude;if(c&&c.use)c.use('room').then(r=>{ROOM=r||p2p()}).catch(()=>{ROOM=p2p()});else ROOM=p2p()}catch(e){ROOM=p2p()}
+try{const c=window.claude;if(c&&c.use)c.use('room').then(r=>{ROOM=r||p2p()}).catch(()=>{ROOM=p2p()});else ROOM=p2p()}catch(e){ROOM=p2p()}
+/* ?auto=CODE&name=NAME[&host=1]: the bar opens this page inside itself and drops everyone straight into the room */
+{const Q=new URLSearchParams(location.search),code=(Q.get('auto')||'').toLowerCase();if(code.length===4){V.name=(Q.get('name')||'').slice(0,8)||V.name;let n=0;const tr=setInterval(()=>{if(ROOM){clearInterval(tr);joinRoom(code,Q.get('host')==='1')}else if(++n>40)clearInterval(tr)},150)}}
 })();
 </script>
