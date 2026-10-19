@@ -845,8 +845,8 @@ WID.bomber=(p,done)=>{
         const r=pad.getBoundingClientRect(),ox=e.clientX-(r.left+r.width/2),oy=e.clientY-(r.top+r.height/2),d=Math.hypot(ox,oy),k=d>R?R/d:1;
         knob.style.transform=`translate(${ox*k}px,${oy*k}px)`;
         let nx=0,ny=0;
-        if(d>16){   // four-way from the stick angle; the current axis is kept until the other one clearly wins (no flicker at diagonals)
-          const ax=Math.abs(ox),ay=Math.abs(oy),horiz=dx!==0?ax>=ay*.75:dy!==0?ax>ay*1.33:ax>=ay;
+        if(d>(dx||dy?22:30)){   // dead zone (wider to start than to keep moving); four-way from the stick angle; the current axis is kept until the other one clearly wins (no flicker at diagonals)
+          const ax=Math.abs(ox),ay=Math.abs(oy),horiz=dx!==0?ax>=ay*.6:dy!==0?ax>ay*1.7:ax>=ay;
           if(horiz)nx=Math.sign(ox);else ny=Math.sign(oy);
         }
         if(nx!==dx||ny!==dy)dir(nx,ny);
